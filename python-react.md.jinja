@@ -1,0 +1,129 @@
+---
+组合: python + react
+前端底座: vite-react-spa-template
+后端底座: python-fastapi-template
+契约版本: v0.1
+---
+
+# Python + React 前后端契约
+
+> 本文件是前后端对接的**单一事实来源**。由整合脚本按后端参数渲染为项目内
+> `docs/CONTRACT.md`，未适用章节自动移除；后端实现与前端实现均据此对齐。
+
+## §0 覆盖范围与参数映射
+
+| 后端参数 | 覆盖取值 | 契约影响（关键规则） |
+|---|---|---|
+| auth_mode | none / opaque | opaque → §2.4 认证、§2.5 认证码、§3.3 前端认证接线；none → 无认证章节 |
+| with_db | true / false | true → §2.3 分页 |
+| with_redis | true / false | opaque 认证依赖 redis；false 且 opaque → 后端 copier 校验拒绝 |
+| with_child_app | true / false | true → §2.6 子应用 |
+| with_taskqueue | none | 其余取值后端未实现，不覆盖 |
+
+## §1 公共契约
+
+### 1.1 响应包络
+
+JSON 响应体一律 `{code, msg, data}`，`code` 为 **string**。
+
+- 成功：HTTP 200，`code="00000"`，`data` = 业务数据
+- 失败：HTTP 状态由后端 `status_code` 决定，`code` = 业务码，`data` = 附加载荷（可为 null）
+- 响应体不含 `status_code` 字段
+
+### 1.2 命名约定
+
+字段全 snake_case（`page_size` / `access_token` / `access_expires_in`）。HTTP 头大小写不敏感。
+
+## §2 后端侧（python 底座生成规则）
+
+### 2.1 端点组织
+
+- 主应用 `app/api/*.py` 的 APIRouter，无版本前缀（如 `/test`、`/auth`、`/users`）
+- 错误码常量集中在 `app/const/`，按 §2.5 生成
+
+### 2.2 统一响应
+
+- 成功：`return ApiResponse.success(data=...)` → `{code, msg, data}` + HTTP 200
+- 业务失败：`raise ApiException(code, msg, status_code, data)` → `{code, msg, data}` + 对应 HTTP 状态
+- `response_model=Response[T]` 仅用于 OpenAPI 文档，实际返回 JSONResponse
+
+{% if with_db == 'true' %}
+### 2.3 分页
+
+- 请求参数：Paginator `{page=1, page_size=20}`（均 ge=1），对应前端 `PageParams`
+- 响应形状：`{list: T[], total, page, page_size}`（模板当前缺统一 VO，生成业务时按此形状用 `count()` + `list()` 组装）
+{% endif %}
+
+{% if auth_mode == 'opaque' %}
+### 2.4 认证
+
+- 登录/注册属业务代码；签发调用 `AuthAppService.issue_tokens(user_id)` → `{access_token, refresh_token, access_expires_in, user{id}}`
+- 受保护路由声明 `current_user: CurrentUser`；请求头 **`x-access-token`**
+- 刷新：`POST /auth/refresh`，`{refresh_token}` → `{access_token, refresh_token, access_expires_in}`
+- 会话：Redis `auth:session:{sid}`；token 格式 `{session_id}.{secret}`
+
+### 2.5 错误码表（码由后端定义，常量生成放 `app/const/`）
+
+| code | 含义 | HTTP | 备注 |
+|---|---|---|---|
+| 00000 | 成功 | 200 | |
+| 40001 | 请求参数校验失败 | 400 | msg 含字段与原因 |
+| 40102 | 访问令牌过期 | 401 | `data.refresh_token` 供前端无感刷新 |
+| 40103 | 刷新令牌无效/过期 | 401 | 前端据此登出 |
+| 40301 | 访问令牌不匹配 | 403 | |
+| 40302 | 会话不存在/失效 | 403 | 登录态丢失 |
+| 50000 | 服务端内部错误 | 500 | 不泄漏内部细节 |
+{% else %}
+### 2.5 错误码表（码由后端定义，常量生成放 `app/const/`）
+
+| code | 含义 | HTTP |
+|---|---|---|
+| 00000 | 成功 | 200 |
+| 40001 | 请求参数校验失败 | 400 |
+| 50000 | 服务端内部错误 | 500 |
+{% endif %}
+
+{% if with_child_app == 'true' %}
+### 2.6 子应用
+
+- 子应用挂载 `/{prefix}`，自带中间件与异常处理器
+- 自带 demo 端点 `/{prefix}/info`、`/{prefix}/echo`
+{% endif %}
+
+## §3 前端侧（react 底座生成规则，引用 frontend/docs）
+
+### 3.1 接口链路
+
+按 `frontend/docs/development.md` §3：DTO 类型 → `apiPath` 注册 `endpoint(path, method, {authRequired})` → api 层 `requestEndpoint` → hooks 层 React Query（queryFn 透传 signal 实现真取消）。
+
+### 3.2 分页类型
+
+请求 `PageParams{page, page_size}`；响应 `Paginated<T>{list, total, page, page_size}`——**统一 `list`**，不手写 `items`。
+
+{% if auth_mode == 'opaque' %}
+### 3.3 认证接线
+
+按 `frontend/docs/development.md` §7，但本契约强制两点差异：
+
+- 请求头用 **`x-access-token`**（非文档示例的 `Authorization: Bearer`）
+- 401 无感刷新：`status=401 且 code=40102` → 取 `data.refresh_token` → lockGate 单飞 `POST /auth/refresh` → 用新 token 重放原请求；`40103` → 清 token 跳登录
+{% endif %}
+
+## §4 开发接线
+
+### 4.1 baseURL 与代理
+
+- 前端占位符 `apiBaseUrl` = `/api`；vite proxy `/api → http://localhost:8000`（rewrite 去掉 `/api`）
+- 后端 `config.yaml` 的 `app.port = 8000`
+
+### 4.2 CORS
+
+- 开发期：后端 `allow_origins` 收窄为 `http://localhost:5173`（`x-access-token` 为非简单头必须 CORS；`allow_credentials=True` 时 `*` 无效）
+- 生产：同域部署或网关处理，不依赖浏览器跨域
+
+### 4.3 连通验证
+
+- 基础：前端 `GET /test/`（公开）→ `data.request_id` 非空即通
+{% if auth_mode == 'opaque' %}
+- 全链路：登录签发 → 受保护接口 → 过期（401+40102）→ 刷新 → 重放
+{% endif %}
