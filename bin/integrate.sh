@@ -97,16 +97,19 @@ mkdir -p "$PROJECT/frontend" "$PROJECT/backend" "$PROJECT/docs"
 
 # ── ② 前端 ───────────────────────────────────────────
 echo ""
+# 前端需执行 _tasks（含 auth_mode=none 时删 src/auth 的条件裁剪 + 自动 pnpm install），故不加 -T
 echo "[2/6] 生成前端 → $PROJECT/frontend"
 copier copy "${FRONTEND_TMPL[$COMBIN]}" "$PROJECT/frontend" \
   -d "project_name=${PROJECT_NAME}-frontend" \
   -d "project_description=$DESCRIPTION" \
   -d "project_title=$PROJECT_NAME" \
   -d "api_base_url=$API_BASE_URL" \
-  -l -T --trust
+  -d "auth_mode=$AUTH_MODE" \
+  -l --trust
 
 # ── ③ 后端 ───────────────────────────────────────────
 echo ""
+# 后端需执行 _tasks（含 auth_mode=none 时删 auth 文件的条件裁剪 + uv sync 装依赖），故不加 -T
 echo "[3/6] 生成后端 → $PROJECT/backend"
 copier copy "${BACKEND_TMPL[$COMBIN]}" "$PROJECT/backend" \
   -d "project_name=${PROJECT_NAME}-backend" \
@@ -115,7 +118,7 @@ copier copy "${BACKEND_TMPL[$COMBIN]}" "$PROJECT/backend" \
   -d "with_redis=$WITH_REDIS" \
   -d "with_child_app=$WITH_CHILD_APP" \
   -d "child_apps_raw=$CHILD_APPS" \
-  -T --defaults
+  --defaults --trust
 
 # ── ④ 契约渲染 ───────────────────────────────────────
 echo ""
@@ -144,6 +147,4 @@ echo "  $PROJECT/backend/         后端服务（名 ${PROJECT_NAME}-backend）"
 echo "  $PROJECT/docs/CONTRACT.md 前后端契约（改动接口前先读它）"
 echo "  $PROJECT/README.md        入口说明"
 echo ""
-echo "安装依赖（生成后统一装）:"
-echo "  cd $PROJECT/frontend && pnpm install"
-echo "  cd $PROJECT/backend && uv sync"
+echo "依赖已由生成器自动安装（前端 pnpm install / 后端 uv sync）"
