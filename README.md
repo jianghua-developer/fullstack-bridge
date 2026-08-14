@@ -2,8 +2,6 @@
 
 把**单端模板**与**组合契约**整合为一个「前后端一体」项目目录，供 AI 生成完整业务系统时，前后端实现共同对照同一份契约。**全 copier 工具链**（前端/后端/契约/README 均 copier 渲染）。
 
-> 重构设计见 [docs/REFACTOR-DESIGN.md](docs/REFACTOR-DESIGN.md)（9 项决策，两阶段已完成）。
-
 ## 定位
 
 - 单端模板（`vite-react-spa-template` / `python-fastapi-template` …）只约束单端机制与写法
@@ -81,7 +79,7 @@ combos:
 
 ## 对齐协议（params.json）
 
-各底座根目录 `params.json`（协议仓 `fullstack-param-protocol` 的 `gen-params.py` 经 copier 内省生成、底座自维护）。`check.py` 据此检测底座漂移、校验组合对齐，未对齐经 `check-drift` workflow 开 issue。详见 [docs/REFACTOR-DESIGN.md](docs/REFACTOR-DESIGN.md) §5-6。
+各底座根目录 `params.json`（协议仓 `fullstack-param-protocol` 的 `gen-params.py` 经 copier 内省生成、底座自维护）。`check.py` 据此检测底座漂移、校验组合对齐，未对齐经 `check-drift` workflow 开 issue。
 
 ## 依赖
 
