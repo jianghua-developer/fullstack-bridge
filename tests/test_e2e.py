@@ -6,9 +6,10 @@ from pathlib import Path
 BRIDGE = Path(__file__).resolve().parent.parent
 
 
-def run_integrate(project_dir, *extra):
+def run_integrate(project_dir, *extra, combo="python-react"):
+    """调用 integrate.py 生成项目；combo 可覆盖（如将来 python-vue 复用）。"""
     cmd = [str(BRIDGE / ".venv" / "bin" / "python"), str(BRIDGE / "integrate.py"),
-           "python-react", str(project_dir), "--skip-tasks", *extra]
+           combo, str(project_dir), "--skip-tasks", *extra]
     r = subprocess.run(cmd, capture_output=True, text=True)
     assert r.returncode == 0, f"integrate.py 失败:\n{r.stdout}\n{r.stderr}"
     return r
