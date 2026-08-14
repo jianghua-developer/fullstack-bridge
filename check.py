@@ -78,8 +78,13 @@ def has_condition_for(text: str, pname: str) -> bool:
 
 
 def has_else_for(text: str, pname: str) -> bool:
-    """参数的条件块（if/elif <pname> → 匹配 endif）内是否带 else。"""
-    tags = list(re.finditer(r"[{%\[]\s*(if|elif|else|endif)\b([^%\]}]*)", text))
+    """参数的条件块（if/elif <pname> → 匹配 endif）内是否带 else。
+
+    标签定界符显式匹配 `{%` 或 `[%`（jinja2 标准 / copier `[[ ]]` envops）：
+    不依赖字符类碰巧含 `%` 的隐式行为——否则将来「优化」成严格边界时
+    `[% if %]` 支持会静默失效。
+    """
+    tags = list(re.finditer(r"[{\[]%\s*(if|elif|else|endif)\b([^%\]}]*)", text))
     for i, m in enumerate(tags):
         stmt, rest = m.group(1), m.group(2)
         if stmt in ("if", "elif") and re.search(rf"\b{re.escape(pname)}\b", rest):
