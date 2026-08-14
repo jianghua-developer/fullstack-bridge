@@ -2,7 +2,7 @@
 
 把**单端模板**与**组合契约**整合为一个「前后端一体」项目目录，供 AI 生成完整业务系统时，前后端实现共同对照同一份契约。**全 copier 工具链**（前端/后端/契约/README 均 copier 渲染）。
 
-> 重构设计见 [docs/REFACTOR-DESIGN.md](docs/REFACTOR-DESIGN.md)（9 项决策、分两阶段）。
+> 重构设计见 [docs/REFACTOR-DESIGN.md](docs/REFACTOR-DESIGN.md)（9 项决策，两阶段已完成）。
 
 ## 定位
 
@@ -23,10 +23,11 @@ my-app/
 | 文件/目录 | 职责 |
 |---|---|
 | `integrate.py` | 整合编排（CLI + 生成链，全 copier） |
-| `combos.yaml` | 组合映射（缩写 → 前端/后端 source + version 基线 + 契约模板） |
-| `combos/<组合>/` | 契约 copier 模板（`copier.yml` 全必填零默认 + `CONTRACT.md.jinja`） |
-| `check.py` | 检查链（底座 params.json ↔ 组合 ↔ 契约覆盖，未对齐告警） |
-| `templates/project-README/` | 项目 README copier 模板 |
+| `bridge/` | 共享库包：`combos.py`（组合解析/git 校验）、`copier.py`（执行）、`answers.py`（剔除合并） |
+| `combos.yaml` | 组合映射（缩写 → 前端/后端 source + version 基线 + 契约模板 + stack 技术栈） |
+| `combos/<组合>/` | 契约 copier 模板（`copier.yml` 全必填零默认 + `CONTRACT.md.jinja`，可用派生参数枚举） |
+| `check.py` | 检查链（检查 1：pinned 漂移/子集；检查 2：契约取值覆盖；未对齐告警） |
+| `templates/project-README/` | 项目 README copier 模板（技术栈来自 combos.yaml stack） |
 | `.github/workflows/` | `check-drift`（收底座信号）+ `bridge-gate`（改 combos 时校验） |
 
 ## 快速开始
@@ -60,6 +61,11 @@ combos:
       source:  python-fastapi-template
       version: <git-ref>
     contract: python-react
+    stack:                                # 技术栈元数据（README 渲染用）
+      frontend_app:    "Vite + React + TypeScript"
+      backend_app:     "FastAPI"
+      frontend_stack:  "Vite + React + TypeScript + TanStack Query + axios"
+      backend_stack:   "FastAPI + SQLAlchemy（async）+ pydantic-settings"
 ```
 
 加新组合 = 这里加一行 + 新建 `combos/<组合>/` 契约模板目录，`integrate.py`/`check.py` 零改动。
@@ -68,8 +74,10 @@ combos:
 
 - 目录 `combos/{后端}-{前端}/`：`copier.yml`（**全必填零默认** + `_envops` StrictUndefined）+ `CONTRACT.md.jinja`
 - 条件用**后端 copier 参数名**（auth_mode / with_db / with_child_app / api_prefix…）；布尔条件直接 `{% if with_db %}`（copier 类型强转，无 `== 'true'` 字符串坑）
+- **可用派生参数**（`when:false` 由 copier 计算，如 `child_apps`）——`{% for child in child_apps %}` 枚举子应用（`{% yield %}` 仅限文件名）
 - 渲染数据 = 生成后两端 `.copier-answers.yml` 的**实际生效值**（含 copier 默认）剔除合并——默认漂移在构造上不存在
-- 生成链：`integrate.py` 读两端 answers → 用户参数优先剔除 → `-d` 喂契约 copier 模板
+- **合并优先级：用户参数 > 后端 answers > 前端 answers**（同名后端覆盖前端，契约以后端为主）
+- 生成链：`integrate.py` 读两端 answers → 剔除合并 → `-d` 喂契约 copier 模板
 
 ## 对齐协议（params.json）
 
