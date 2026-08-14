@@ -48,3 +48,13 @@ def ensure_git_repo(source: str) -> None:
             f"❌ 底座 {target} 不是 git 仓库——检查链依赖 git 基线（params.json version），"
             f"本地底座必须是 git 检出"
         )
+
+
+def declared_params(combo_name: str) -> set[str] | None:
+    """组合契约模板（combos/<combo>/copier.yml）声明的参数集（决策③ 检查基线）。"""
+    cp = BRIDGE / "combos" / combo_name / "copier.yml"
+    if not cp.exists():
+        print(f"⚠️ 缺组合契约模板 combos/{combo_name}/copier.yml")
+        return None
+    data = yaml.safe_load(cp.read_text(encoding="utf-8"))
+    return {k for k in data if not k.startswith("_")}
