@@ -2,7 +2,7 @@
 
 import re
 
-from . import BRIDGE
+from .. import BRIDGE
 
 
 def has_condition_for(text: str, pname: str) -> bool:

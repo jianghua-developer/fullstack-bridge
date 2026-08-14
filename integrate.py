@@ -13,9 +13,9 @@ import sys
 from pathlib import Path
 
 from bridge import BRIDGE
-from bridge.answers import merge_answers, read_answers
 from bridge.combos import ensure_git_repo, is_url, load_combos, resolve_template
-from bridge.copier import run_copier
+from bridge.integrate.answers import merge_answers, read_answers
+from bridge.integrate.copier import run_copier
 
 # 精选别名 → copier 参数名（显式传入才进 user_params，缺省让底座 copier 默认/answers 兜底）
 CURATED_ALIASES = {

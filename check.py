@@ -10,9 +10,9 @@
 import argparse
 import sys
 
+from bridge.check.coverage import coverage_report
+from bridge.check.params import diff_params, read_params
 from bridge.combos import declared_params, load_combos, resolve_base
-from bridge.coverage import coverage_report
-from bridge.params import diff_params, read_params
 
 
 def build_parser() -> argparse.ArgumentParser:
