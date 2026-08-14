@@ -122,7 +122,7 @@ integrate.py my-app \
 1. 读 `frontend/.copier-answers.yml` 与 `backend/.copier-answers.yml`（YAML → pyyaml）
 2. **剔除内部字段**：所有 `_` 前缀（`_src_path`、`_commit`、`_external_data` 等）
 3. **用户参数剔除去重**：用户 CLI 传入的每个参数**优先**，以其值为准（逻辑层参数，如原始项目名、description）；answers 中同名值不重复传入——端特有的后缀名（`project_name=xxx-frontend/xxx-backend`）即被此规则排除
-4. 其余参数按端取值：后端参数（`auth_mode/with_db/with_redis/with_child_app/api_prefix/child_apps_raw`…）取 backend answers；前端参数（`api_base_url`…）取 frontend answers
+4. **合并优先级：用户参数 > 后端 answers > 前端 answers**——同名冲突时后端覆盖前端（契约以后端侧为主）；`project_name` 始终为原始项目名（覆盖两端后缀名）。其余参数按端取值：后端参数（`auth_mode/with_db/with_redis/with_child_app/api_prefix/child_apps_raw`…）取 backend answers；前端参数（`api_base_url`…）取 frontend answers
 5. **`-d` 全传**给契约 copier 模板：`copier copy combos/python-react $PROJECT/docs -d key=value... --defaults`
    - 值经字符串往返（answers 的 bool/num → 字符串 → copier 按契约 copier.yml 声明的 `type` 再强转），类型往返安全
 6. 契约模板 `_envops: {undefined: "jinja2.StrictUndefined"}`：引用未声明参数 → 硬报错
