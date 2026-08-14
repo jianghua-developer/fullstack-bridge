@@ -14,7 +14,7 @@ from pathlib import Path
 
 from bridge import BRIDGE
 from bridge.answers import merge_answers, read_answers
-from bridge.combos import ensure_git_repo, load_combos, resolve_template
+from bridge.combos import ensure_git_repo, is_url, load_combos, resolve_template
 from bridge.copier import run_copier
 
 # 精选别名 → copier 参数名（显式传入才进 user_params，缺省让底座 copier 默认/answers 兜底）
@@ -72,7 +72,9 @@ def resolve_pipeline(p: argparse.ArgumentParser, args, combos: dict) -> tuple[st
                         if resolve_template(c["frontend"]["source"]) == resolve_template(args.frontend)
                         and resolve_template(c["backend"]["source"]) == resolve_template(args.backend)), None)
         if not matched:
-            p.error(f"未注册组合（{args.frontend} + {args.backend}），无契约模板——请先在 combos.yaml 注册")
+            hint = "；git 地址与裸名解析永不相等，git 地址模式不提供契约" if (
+                is_url(args.frontend) or is_url(args.backend)) else ""
+            p.error(f"未注册组合（{args.frontend} + {args.backend}），无契约模板——请先在 combos.yaml 注册{hint}")
         front_src, back_src = args.frontend, args.backend
         contract_dir = BRIDGE / "combos" / matched
         stack = combos[matched].get("stack", {})

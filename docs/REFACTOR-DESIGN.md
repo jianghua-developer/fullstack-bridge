@@ -80,7 +80,7 @@ integrate.py my-app \
 
 - **互斥规则**：模式 A（组合缩写）与模式 B（`--frontend/--backend`）**不可同时使用**，同时出现 → 报错
 - **成对规则**：`--frontend` 与 `--backend` **必须同时出现**，只给其一 → 报错
-- **模式 B 的契约模板**：在 `combos.yaml` 中按 **(frontend, backend) 匹配已注册组合** → 复用其契约模板；未匹配 → 报错「未注册组合，无契约模板」（提示先在 combos.yaml 注册）。**模式 B 是逃生舱**：治理（check）属于 combos.yaml 注册的组合，显式覆盖的底座路径须为 git 检出（非 git 直接拒绝）
+- **模式 B 的契约模板**：在 `combos.yaml` 中按 **(frontend, backend) 匹配已注册组合** → 复用其契约模板；未匹配 → 报错「未注册组合，无契约模板」（提示先在 combos.yaml 注册）。**匹配用裸名解析后的本地路径**（`../<name>/template`）比对——**git 地址与裸名解析永不相等，git 地址模式不提供契约**（报「未注册组合」）。**模式 B 是逃生舱**：治理（check）属于 combos.yaml 注册的组合，显式覆盖的底座路径须为 git 检出（非 git 直接拒绝）
 
 组合缩写 → 前端/后端/契约 的映射维护在 **`combos.yaml`**（独立文件，加新组合只改它 + 加 `combos/<combo>/` 契约模板目录，**不动 integrate.py**）：
 

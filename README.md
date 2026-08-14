@@ -46,7 +46,7 @@ my-app/
 
 两种模式**互斥**：缩写与 `--frontend/--backend` 不可同时出现；`--frontend/--backend` 必须成对。
 
-**底座必须 git 仓**：本地目录须为 git 检出（检查链依赖 `params.json` version 基线），非 git 直接拒绝。模式 B 是**逃生舱**——治理（check）属于 combos.yaml 注册的组合。
+**底座必须 git 仓**：本地目录须为 git 检出（检查链依赖 `params.json` version 基线），非 git 直接拒绝。模式 B 是**逃生舱**——治理（check）属于 combos.yaml 注册的组合。**模式 B 的 `--frontend/--backend` 须是注册组合的本地解析路径**（与 combos.yaml 裸名解析一致）；**git 地址匹配不上注册组合 → 不提供契约**（报「未注册组合」，不生成）。
 
 ## 组合映射（combos.yaml）
 
