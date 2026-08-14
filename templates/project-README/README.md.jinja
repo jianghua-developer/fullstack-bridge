@@ -8,25 +8,22 @@
 
 | 目录 | 职责 |
 |---|---|
-| `frontend/` | 前端应用（Vite + React + TypeScript） |
-| `backend/` | 后端服务（FastAPI） |
+| `frontend/` | 前端应用（{{ frontend_app }}），详见 `frontend/docs/` 与契约 §3 |
+| `backend/` | 后端服务（{{ backend_app }}），详见 `backend/README.md` 与契约 §2 |
 | `docs/CONTRACT.md` | 前后端接口契约——**改动任何接口前先读它** |
 
 ## 快速开始
 
-1. 启动后端：进入 `backend/`，`uv sync && uv run uvicorn main:app`（默认 :8000）
-2. 启动前端：进入 `frontend/`，`pnpm install && pnpm dev`（默认 :5173，`{{ api_base_url }}` 代理到后端）
-3. 验证连通：打开首页，应能看到后端返回的 `request_id`
+启动与连通验证见 `docs/CONTRACT.md` §4；前端开发见 `frontend/docs/`，后端机制见 `backend/README.md`。
 
 ## 开发约定
 
 - 新增/修改接口：先更新 `docs/CONTRACT.md`，再分别实现前后端，保证两端对齐
-- 字段一律 snake_case；成功码 `00000`；失败响应 `{code, msg, data}` 中 `code` 为业务码
-- 前端文档见 `frontend/docs/`，后端机制见 `backend/README.md`
+- 一切对接规则（命名、响应包络、错误码、认证）以 `docs/CONTRACT.md` 为准
 
 ## 技术栈
 
 | 端 | 技术栈 |
 |---|---|
-| 前端 | Vite + React + TypeScript + TanStack Query + axios |
-| 后端 | FastAPI + SQLAlchemy（async）+ pydantic-settings |
+| 前端 | {{ frontend_stack }} |
+| 后端 | {{ backend_stack }} |

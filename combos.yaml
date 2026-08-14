@@ -10,3 +10,9 @@ combos:
       source:  python-fastapi-template
       version: c73aa7b
     contract: python-react
+    # 技术栈元数据（README 渲染用；加新组合时随 combos.yaml 提供）
+    stack:
+      frontend_app:    "Vite + React + TypeScript"
+      backend_app:     "FastAPI"
+      frontend_stack:  "Vite + React + TypeScript + TanStack Query + axios"
+      backend_stack:   "FastAPI + SQLAlchemy（async）+ pydantic-settings"

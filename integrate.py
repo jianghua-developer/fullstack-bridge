@@ -54,8 +54,8 @@ def validate_cli(p: argparse.ArgumentParser, args) -> None:
         p.error("--frontend 与 --backend 必须同时出现")
 
 
-def resolve_pipeline(p: argparse.ArgumentParser, args, combos: dict) -> tuple[str, str, Path]:
-    """组合解析（模式 A/B）→ (前端模板, 后端模板, 契约模板目录)；底座须 git 仓。"""
+def resolve_pipeline(p: argparse.ArgumentParser, args, combos: dict) -> tuple[str, str, Path, dict]:
+    """组合解析（模式 A/B）→ (前端模板, 后端模板, 契约模板目录, stack 元数据)；底座须 git 仓。"""
     if args.combo:
         if args.combo not in combos:
             p.error(f"未知组合 {args.combo}（可用: {', '.join(combos)}）")
@@ -63,6 +63,7 @@ def resolve_pipeline(p: argparse.ArgumentParser, args, combos: dict) -> tuple[st
         front_src = resolve_template(combo["frontend"]["source"])
         back_src = resolve_template(combo["backend"]["source"])
         contract_dir = BRIDGE / "combos" / combo.get("contract", args.combo)
+        stack = combo.get("stack", {})
         ensure_git_repo(combo["frontend"]["source"])
         ensure_git_repo(combo["backend"]["source"])
     else:
@@ -74,9 +75,10 @@ def resolve_pipeline(p: argparse.ArgumentParser, args, combos: dict) -> tuple[st
             p.error(f"未注册组合（{args.frontend} + {args.backend}），无契约模板——请先在 combos.yaml 注册")
         front_src, back_src = args.frontend, args.backend
         contract_dir = BRIDGE / "combos" / matched
+        stack = combos[matched].get("stack", {})
         ensure_git_repo(args.frontend)
         ensure_git_repo(args.backend)
-    return front_src, back_src, contract_dir
+    return front_src, back_src, contract_dir, stack
 
 
 def collect_user_params(p: argparse.ArgumentParser, args) -> dict:
@@ -93,7 +95,7 @@ def collect_user_params(p: argparse.ArgumentParser, args) -> dict:
 
 
 def generate(project_dir: Path, project_name: str, user_params: dict,
-             front_src: str, back_src: str, contract_dir: Path, skip_tasks: bool) -> None:
+             front_src: str, back_src: str, contract_dir: Path, stack: dict, skip_tasks: bool) -> None:
     """生成链：前端/后端 copier → 读 answers 剔除合并 → 契约/README copier。"""
     front_dir, back_dir, docs_dir = project_dir / "frontend", project_dir / "backend", project_dir / "docs"
 
@@ -108,7 +110,9 @@ def generate(project_dir: Path, project_name: str, user_params: dict,
     merged = merge_answers(front_ans, back_ans, user_params, project_name)
 
     run_copier(str(contract_dir), docs_dir, merged, trust=False, skip_tasks=False)
-    run_copier(str(BRIDGE / "templates" / "project-README"), project_dir, merged, trust=False, skip_tasks=False)
+    # README 数据 = 生成 answers 合并 + combos.yaml 的 stack 元数据（组合专属技术栈）
+    run_copier(str(BRIDGE / "templates" / "project-README"), project_dir, {**merged, **stack},
+               trust=False, skip_tasks=False)
 
 
 def main() -> int:
@@ -117,12 +121,12 @@ def main() -> int:
     validate_cli(p, args)
 
     combos = load_combos()
-    front_src, back_src, contract_dir = resolve_pipeline(p, args, combos)
+    front_src, back_src, contract_dir, stack = resolve_pipeline(p, args, combos)
     user_params = collect_user_params(p, args)
 
     project_dir = Path(args.project)
     project_dir.mkdir(parents=True, exist_ok=True)
-    generate(project_dir, project_dir.name, user_params, front_src, back_src, contract_dir, args.skip_tasks)
+    generate(project_dir, project_dir.name, user_params, front_src, back_src, contract_dir, stack, args.skip_tasks)
 
     print(f"\n✅ 项目已生成: {project_dir}")
     print(f"  {project_dir}/frontend/        前端（名 {project_dir.name}-frontend）")
