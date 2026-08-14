@@ -1,0 +1,29 @@
+# {{ project_name }}
+
+{% if project_description %}{{ project_description }}
+
+{% endif %}业务系统前端与后端统一仓库。
+
+## 目录
+
+| 目录 | 职责 |
+|---|---|
+| `frontend/` | 前端应用（{{ frontend_app }}），详见 `frontend/docs/` 与契约 §3 |
+| `backend/` | 后端服务（{{ backend_app }}），详见 `backend/README.md` 与契约 §2 |
+| `docs/CONTRACT.md` | 前后端接口契约——**改动任何接口前先读它** |
+
+## 快速开始
+
+启动与连通验证见 `docs/CONTRACT.md` §4；前端开发见 `frontend/docs/`，后端机制见 `backend/README.md`。
+
+## 开发约定
+
+- 新增/修改接口：先更新 `docs/CONTRACT.md`，再分别实现前后端，保证两端对齐
+- 一切对接规则（命名、响应包络、错误码、认证）以 `docs/CONTRACT.md` 为准
+
+## 技术栈
+
+| 端 | 技术栈 |
+|---|---|
+| 前端 | {{ frontend_stack }} |
+| 后端 | {{ backend_stack }} |

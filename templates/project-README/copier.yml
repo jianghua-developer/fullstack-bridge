@@ -1,0 +1,12 @@
+# 项目 README copier 模板（渲染到项目根 README.md）
+# 技术栈来自 combos.yaml 的 stack 元数据（组合专属，不在生成链 answers 里）
+_envops:
+  undefined: "jinja2.StrictUndefined"
+_exclude:
+  - "copier.yml"
+project_name:        { type: str }
+project_description: { type: str, default: "" }
+frontend_app:        { type: str }
+backend_app:         { type: str }
+frontend_stack:      { type: str }
+backend_stack:       { type: str }

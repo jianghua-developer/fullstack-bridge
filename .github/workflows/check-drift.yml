@@ -1,0 +1,61 @@
+# check-drift — 接收底座信号（workflow_dispatch），跑漂移检查，开/更新 issue。
+# 由底座 CI 在 params.json 变化时 dispatch（见底座 params-check.yml 的 notify-drift job）。
+name: check-drift
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_repo:
+        description: 底座仓库名（如 python-fastapi-template）
+        required: true
+      base_version:
+        description: 底座信号版本（commit/tag，params.json 变化的那次提交）
+        required: true
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 装依赖
+        run: pip install pyyaml
+      - name: 克隆受影响底座到兄弟路径
+        run: python .github/scripts/clone-bases.py --for-base "${{ inputs.base_repo }}"
+      - name: 跑漂移检查（漂移不算 CI 失败，以报告为准）
+        id: check
+        continue-on-error: true
+        run: |
+          python check.py --base-repo "${{ inputs.base_repo }}" --base-version "${{ inputs.base_version }}" \
+            | tee /tmp/check-report.txt
+          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+      - name: 开/更新 issue（标题按 base_repo 幂等）
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const baseRepo = '${{ inputs.base_repo }}';
+            const baseVersion = '${{ inputs.base_version }}';
+            const title = `底座漂移：${baseRepo} 参数变化 (${baseVersion.slice(0, 7)})`;
+            const body = '```\n' + fs.readFileSync('/tmp/check-report.txt', 'utf8') +
+              '```\n\n处理：改 `combos/<combo>/` 契约模板（若需要）+ 手动 bump `combos.yaml` 的 version 后提 PR。';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', per_page: 100,
+            });
+            const found = issues.find(i => i.title.includes(`底座漂移：${baseRepo}`));
+            if (found) {
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: found.number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo, title, body,
+              });
+            }

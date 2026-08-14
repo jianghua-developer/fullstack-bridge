@@ -1,0 +1,28 @@
+# combos/python-react 契约 copier 模板
+# 全必填零默认（决策 ②）：渲染数据由生成链从 answers + 用户参数喂入，无默认值可漂移
+_envops:
+  undefined: "jinja2.StrictUndefined"
+
+# 复制时排除模板元文件
+_exclude:
+  - "copier.yml"
+
+# 契约引用的参数（= 本项目参数基线，决策 ③）
+project_name:        { type: str }
+project_description: { type: str }
+api_base_url:        { type: str }
+auth_mode:           { type: str }
+with_db:             { type: bool }
+with_redis:          { type: bool }
+with_child_app:      { type: bool }
+child_apps_raw:
+  type: str
+  when: "{{ with_child_app }}"
+# 派生参数 child_apps：与后端底座 python-fastapi-template 的 child_apps 派生逻辑保持同步
+# （后端改派生时此处须同步更新；检查链只做原生参数的字面读取，派生值由 copier 计算）
+child_apps:
+  type: yaml
+  when: false
+  default: >-
+    {% if with_child_app %}{% set ns = namespace(items=[]) %}{% for token in child_apps_raw.split(',') | map('trim') | reject('equalto','') | list %}{% set parts = token.split(':', 1) %}{% set nm = parts[0] %}{% set pfx = parts[1] if parts|length > 1 else parts[0] %}{% if pfx.startswith('/') %}{% set pfx = pfx[1:] %}{% endif %}{% set _ = ns.items.append({'name': nm, 'prefix': pfx}) %}{% endfor %}[{% for c in ns.items | unique(attribute='name') | list %}{name: {{ c.name }}, prefix: {{ c.prefix }}}{% if not loop.last %}, {% endif %}{% endfor %}]{% else %}[]{% endif %}
+api_prefix:          { type: str }
