@@ -1,21 +1,12 @@
-"""e2e：integrate.py 生成项目并校验产物（--skip-tasks 避免装依赖）。"""
+"""python-react 组合 e2e：integrate.py 生成并校验产物（--skip-tasks 避免装依赖）。
 
-import subprocess
-from pathlib import Path
+新增组合（如 python-vue）→ 新建 test_e2e_for_<组合>.py，复用 tests/utils/runner.run_integrate。
+"""
 
-BRIDGE = Path(__file__).resolve().parent.parent
-
-
-def run_integrate(project_dir, *extra, combo="python-react"):
-    """调用 integrate.py 生成项目；combo 可覆盖（如将来 python-vue 复用）。"""
-    cmd = [str(BRIDGE / ".venv" / "bin" / "python"), str(BRIDGE / "integrate.py"),
-           combo, str(project_dir), "--skip-tasks", *extra]
-    r = subprocess.run(cmd, capture_output=True, text=True)
-    assert r.returncode == 0, f"integrate.py 失败:\n{r.stdout}\n{r.stderr}"
-    return r
+from utils.runner import run_integrate
 
 
-def test_e2e_opaque_full(tmp_path):
+def test_e2e_opaque_full_for_python_react(tmp_path):
     proj = tmp_path / "test-app"
     run_integrate(proj, "--auth-mode", "opaque", "--with-child-app", "true",
                   "--child-apps", "backend,admin:adm")
@@ -34,7 +25,7 @@ def test_e2e_opaque_full(tmp_path):
     assert "FastAPI" in readme
 
 
-def test_e2e_none_trim(tmp_path):
+def test_e2e_none_trim_for_python_react(tmp_path):
     proj = tmp_path / "test-app2"
     run_integrate(proj, "--auth-mode", "none", "--with-db", "false", "--with-child-app", "false")
 
