@@ -1,0 +1,25 @@
+# bridge-gate — 桥侧 CI 门槛：改动 combos/（契约模板）或 combos.yaml 时，
+# 用底座 params.json（pinned 基线）验证对齐，未对齐阻止合并。
+name: bridge-gate
+
+on:
+  push:
+    branches: [refactor/params-protocol, main]
+    paths: [combos.yaml, combos/**]
+  pull_request:
+    paths: [combos.yaml, combos/**]
+
+jobs:
+  align:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 装依赖
+        run: pip install pyyaml
+      - name: 克隆全部组合的底座到兄弟路径
+        run: python .github/scripts/clone-bases.py --all
+      - name: 跑对齐检查（未对齐 → 阻止合并）
+        run: python check.py --all

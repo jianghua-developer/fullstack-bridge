@@ -1,0 +1,11 @@
+# combos.yaml — 组合 → 模板映射（加新组合只改这里）
+# version：该组合已复核/对齐到的底座 git 版本（手动维护，非自动更新）——check 以此为基线
+combos:
+  python-react:
+    frontend:
+      source:  vite-react-spa-template
+      version: 0034ec9
+    backend:
+      source:  python-fastapi-template
+      version: c73aa7b
+    contract: python-react
