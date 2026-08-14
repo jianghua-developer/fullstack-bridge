@@ -10,3 +10,12 @@ dependencies = [
 # 非发布型工具项目：uv sync 只装依赖，不构建/安装本项目
 [tool.uv]
 package = false
+
+# 开发依赖：uv sync --dev
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

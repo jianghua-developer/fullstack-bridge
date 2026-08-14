@@ -93,3 +93,10 @@ combos:
 # 重建桥环境（按 pyproject.toml）
 uv sync
 ```
+
+## 测试
+
+```bash
+uv sync --dev        # 装 pytest（dev 依赖组）
+uv run pytest        # 单元测试（bridge 各模块/CLI）+ e2e（integrate.py 生成校验）
+```
