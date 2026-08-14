@@ -18,4 +18,9 @@ with_child_app:      { type: bool }
 child_apps_raw:
   type: str
   when: "{{ with_child_app }}"
+child_apps:
+  type: yaml
+  when: false
+  default: >-
+    {% if with_child_app %}{% set ns = namespace(items=[]) %}{% for token in child_apps_raw.split(',') | map('trim') | reject('equalto','') | list %}{% set parts = token.split(':', 1) %}{% set nm = parts[0] %}{% set pfx = parts[1] if parts|length > 1 else parts[0] %}{% if pfx.startswith('/') %}{% set pfx = pfx[1:] %}{% endif %}{% set _ = ns.items.append({'name': nm, 'prefix': pfx}) %}{% endfor %}[{% for c in ns.items | unique(attribute='name') | list %}{name: {{ c.name }}, prefix: {{ c.prefix }}}{% if not loop.last %}, {% endif %}{% endfor %}]{% else %}[]{% endif %}
 api_prefix:          { type: str }

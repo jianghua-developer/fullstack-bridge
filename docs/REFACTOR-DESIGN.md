@@ -25,7 +25,7 @@ fullstack-bridge 是系列**桥接层**：把前端底座 + 后端底座 + 裁�
 | ③ | 检查链「本项目参数」基线 | **= 组合契约模板 copier.yml 声明的参数** |
 | ④ | params.json schema | **全量参数（含派生），派生参数标注 `derived`，须含 source hash** |
 | ⑤ | 底座钩子与 CI | **钩子仅生成（不拦截本地提交）**；base CI 双职责：①自检 params.json==copier.yml，失败**阻止合并**（base 本地硬门槛，无跨仓时序问题）；②探测 params.json 变化 → **物理通知**桥接方（不阻塞）。跨仓对齐检查（check.py）完全在桥侧，与 base CI 解耦 |
-| ⑥ | CLI 组合形态 | **缩写与显式 `--frontend/--backend` 两种模式互斥**；`--frontend/--backend` 必须成对出现；缩写 → 模板映射独立在 `combos.yaml` 维护（见 §4.1） |
+| ⑥ | CLI 组合形态 | **缩写与显式 `--frontend/--backend` 两种模式互斥**；`--frontend/--backend` 必须成对出现（**逃生舱**，治理属注册组合）；**底座必须 git 仓**（检查链依赖 git 基线，非 git 直接拒绝）；缩写 → 模板映射独立在 `combos.yaml` 维护（见 §4.1） |
 | ⑦ | 已知漂移修复 | **先规划**（§9），不在本期实现 |
 | ⑧ | 实施范围 | **分阶段**：阶段 1 = params.json 协议 + 检查链（治理先行）；阶段 2 = 契约迁移 + CLI 改造 |
 | ⑨ | 底座钩子+校验工具归属 | **独立小仓**（协议仓）：`gen-params.py` + params.json schema 规范 + CI 校验脚本；各底座**钉版本 vendored** 接入（见 §5.3） |
@@ -80,7 +80,7 @@ integrate.py my-app \
 
 - **互斥规则**：模式 A（组合缩写）与模式 B（`--frontend/--backend`）**不可同时使用**，同时出现 → 报错
 - **成对规则**：`--frontend` 与 `--backend` **必须同时出现**，只给其一 → 报错
-- **模式 B 的契约模板**：在 `combos.yaml` 中按 **(frontend, backend) 匹配已注册组合** → 复用其契约模板；未匹配 → 报错「未注册组合，无契约模板」（提示先在 combos.yaml 注册）
+- **模式 B 的契约模板**：在 `combos.yaml` 中按 **(frontend, backend) 匹配已注册组合** → 复用其契约模板；未匹配 → 报错「未注册组合，无契约模板」（提示先在 combos.yaml 注册）。**模式 B 是逃生舱**：治理（check）属于 combos.yaml 注册的组合，显式覆盖的底座路径须为 git 检出（非 git 直接拒绝）
 
 组合缩写 → 前端/后端/契约 的映射维护在 **`combos.yaml`**（独立文件，加新组合只改它 + 加 `combos/<combo>/` 契约模板目录，**不动 integrate.py**）：
 
@@ -105,7 +105,7 @@ integrate.py my-app \
       contract: python-vue
   ```
 
-- 模板源解析规则：`frontend/backend.source` 值为系列底座名（裸名）→ 解析为 `$BRIDGE_DIR/../<name>/template`；以 `/`、`./`、`../` 或 `git@`/`https://` 开头 → 当作显式本地目录 / git 地址原样使用
+- 模板源解析规则：`frontend/backend.source` 值为系列底座名（裸名）→ 解析为 `$BRIDGE_DIR/../<name>/template`；以 `/`、`./`、`../` 或 `git@`/`https://` 开头 → 当作显式本地路径 / git 地址原样使用。**底座必须是 git 仓**（检查链依赖 `params.json` version 基线）——非 git 本地目录在整合时直接拒绝
 - **`version`（对齐基线，手动维护）**：记录该组合**已复核/对齐到**的底座 git 版本，**非自动更新**。check.py 用它做基线——读 **pinned 版本的 params**（对齐校验）vs **当前 params**（漂移检测），底座从 v_old 走到 v_new 即判漂移、通知跟进。本地目录底座同样记其 HEAD commit
 - **version 的 bump 是人工确认动作**：check-drift 检出漂移并被处理时，fix PR 必须**手动更新 version**（标记「已复核新版本」）——**无论契约模板是否改动**：base 新增参数但契约决定不覆盖时也要 bump，否则漂移标志一直挂着。桥 CI 门槛对此有天然约束：契约声明了 pinned 版本没有的参数 → 检查失败，强制要求 bump（防止「改了契约忘了 bump 版本」）
 - `--frontend/--backend` 接受**本地目录或 git 地址**；git 地址克隆到缓存目录，模板交给 copier（copier 原生支持 git URL 作 src_path），`params.json` 从克隆读，生成时记 `base@commit`

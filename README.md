@@ -46,13 +46,15 @@ my-app/
 
 两种模式**互斥**：缩写与 `--frontend/--backend` 不可同时出现；`--frontend/--backend` 必须成对。
 
+**底座必须 git 仓**：本地目录须为 git 检出（检查链依赖 `params.json` version 基线），非 git 直接拒绝。模式 B 是**逃生舱**——治理（check）属于 combos.yaml 注册的组合。
+
 ## 组合映射（combos.yaml）
 
 ```yaml
 combos:
   python-react:
     frontend:
-      source:  vite-react-spa-template   # 系列底座名 → ../<name>/template；或本地目录/git 地址
+      source:  vite-react-spa-template   # 系列底座名 → ../<name>/template（须 git 仓）；或 git 地址
       version: <git-ref>                  # 该组合已复核/对齐到的底座版本（check 基线）
     backend:
       source:  python-fastapi-template

@@ -20,19 +20,8 @@ from pathlib import Path
 
 import yaml
 
-BRIDGE = Path(__file__).resolve().parent
-COMBO_FILE = BRIDGE / "combos.yaml"
-
-
-def load_combos() -> dict:
-    return yaml.safe_load(COMBO_FILE.read_text(encoding="utf-8"))["combos"]
-
-
-def resolve_base(source: str) -> Path:
-    """系列底座名 → ../<name>；显式本地路径原样；git URL 需先 clone（阶段 1 仅本地）。"""
-    if source.startswith(("/", "./", "../")) or "://" in source or source.startswith("git@"):
-        return Path(source)
-    return BRIDGE.parent / source
+from bridge import BRIDGE
+from bridge.combos import load_combos, resolve_base
 
 
 def read_params(base_dir: Path, ref: str | None) -> tuple[dict | None, str | None]:

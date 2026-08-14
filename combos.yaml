@@ -1,4 +1,5 @@
 # combos.yaml — 组合 → 模板映射（加新组合只改这里）
+# source：系列底座名（→ ../<name>/template）或 git 地址——底座必须是 git 仓（检查链依赖 git 基线，非 git 直接拒绝）
 # version：该组合已复核/对齐到的底座 git 版本（手动维护，非自动更新）——check 以此为基线
 combos:
   python-react:

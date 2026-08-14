@@ -89,9 +89,11 @@ JSON 响应体一律 `{code, msg, data}`，`code` 为 **string**。
 {% if with_child_app %}
 ### 2.6 子应用
 
-- 按 `child_apps_raw`（`{{ child_apps_raw }}`）生成多实例：`{name[:prefix]}` 逗号分隔，前缀缺省等于子应用名
-- 子应用挂载 `/{prefix}`（**不受 `api_prefix` 影响**），自带中间件与异常处理器
-- 自带 demo 端点 `/{prefix}/info`、`/{prefix}/echo`
+按 `child_apps_raw`（`{{ child_apps_raw }}`）生成多实例，挂载于各自前缀（**不受 `api_prefix` 影响**），自带中间件与异常处理器：
+
+{% for child in child_apps %}
+- **{{ child.name }}**：挂载 `{{ child.prefix }}`，demo 端点 `{{ child.prefix }}/info`、`{{ child.prefix }}/echo`
+{% endfor %}
 {% endif %}
 
 ## §3 前端侧（react 底座生成规则，引用 frontend/docs）

@@ -1,26 +1,21 @@
 #!/usr/bin/env python3
-"""integrate.py — fullstack-bridge 整合编排（全 copier，render.py 已退役）。
+"""integrate.py — fullstack-bridge 整合编排（薄入口；逻辑在 bridge.py 共享库）。
 
-生成链：任务输入参数 → copier 前端/后端（--trust 执行 _tasks）
-                     → 读两端 .copier-answers.yml → 剔除合并（用户参数优先）
-                     → 契约 copier 模板（全必填零默认 + StrictUndefined）→ docs/CONTRACT.md
-                     → 项目 README copier 模板 → README.md
-
-CLI 两种模式互斥（决策 ⑥）：
+CLI（决策 ⑥）：
   模式 A：integrate.py <combo缩写> <project>
-  模式 B：integrate.py <project> --frontend <本地|git> --backend <本地|git>（必须成对）
+  模式 B：integrate.py <project> --frontend <本地|git> --backend <本地|git>（必须成对，逃生舱）
+底座必须是 git 仓（检查链依赖 git 基线）；非 git 本地目录直接拒绝。
 通用透传：-D key=value（任意底座参数，零桥改动）
 """
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
 
-import yaml
-
-BRIDGE = Path(__file__).resolve().parent
-COMBO_FILE = BRIDGE / "combos.yaml"
+from bridge import BRIDGE
+from bridge.answers import merge_answers, read_answers
+from bridge.combos import ensure_git_repo, load_combos, resolve_template
+from bridge.copier import run_copier
 
 # 精选别名 → copier 参数名（显式传入才进 user_params，缺省让底座 copier 默认/answers 兜底）
 CURATED_ALIASES = {
@@ -35,49 +30,7 @@ CURATED_ALIASES = {
 }
 
 
-def load_combos() -> dict:
-    return yaml.safe_load(COMBO_FILE.read_text(encoding="utf-8"))["combos"]
-
-
-def resolve_template(source: str) -> str:
-    """系列底座名 → ../<name>/template；显式本地路径 / git 地址原样。"""
-    if source.startswith(("/", "./", "../")) or "://" in source or source.startswith("git@"):
-        return source
-    return str(BRIDGE.parent / source / "template")
-
-
-def run_copier(src: str, dest: Path, data: dict, trust: bool, skip_tasks: bool) -> None:
-    cmd = ["copier", "copy", src, str(dest)]
-    for k, v in data.items():
-        cmd += ["-d", f"{k}={d_value(v)}"]
-    cmd += ["--defaults"]
-    if trust:
-        cmd += ["--trust"]
-    if skip_tasks:
-        cmd += ["--skip-tasks"]
-    print(f"↻ copier copy {src} → {dest}（{len(data)} 参数）")
-    r = subprocess.run(cmd)
-    if r.returncode != 0:
-        raise SystemExit(f"❌ copier 失败（退出 {r.returncode}）: {src}")
-
-
-def d_value(v) -> str:
-    if isinstance(v, bool):
-        return "true" if v else "false"
-    if v is None:
-        return ""
-    return str(v)
-
-
-def read_answers(dest_dir: Path) -> dict:
-    p = dest_dir / ".copier-answers.yml"
-    if not p.exists():
-        raise SystemExit(f"❌ 缺少 {p}——前端/后端生成未完成")
-    data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
-    return {k: v for k, v in data.items() if not str(k).startswith("_")}
-
-
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="fullstack-bridge 整合（全 copier）")
     p.add_argument("combo", nargs="?", help="组合缩写（与 --frontend/--backend 互斥）")
     p.add_argument("project", help="项目目录（应用名取 basename）")
@@ -88,9 +41,11 @@ def main() -> int:
     p.add_argument("-D", dest="extra", action="append", default=[], metavar="key=value",
                    help="通用参数透传（任意底座参数，零桥改动）")
     p.add_argument("--skip-tasks", action="store_true", help="跳过 copier _tasks（测试用）")
-    args = p.parse_args()
+    return p
 
-    # ── 模式解析：缩写 vs 显式（互斥 + 成对）──
+
+def validate_cli(p: argparse.ArgumentParser, args) -> None:
+    """CLI 互斥/成对规则（决策 ⑥）。"""
     if args.combo and (args.frontend or args.backend):
         p.error("组合缩写与 --frontend/--backend 互斥，不可同时使用")
     if args.combo is None and (args.frontend is None or args.backend is None):
@@ -98,7 +53,9 @@ def main() -> int:
     if (args.frontend is None) != (args.backend is None):
         p.error("--frontend 与 --backend 必须同时出现")
 
-    combos = load_combos()
+
+def resolve_pipeline(p: argparse.ArgumentParser, args, combos: dict) -> tuple[str, str, Path]:
+    """组合解析（模式 A/B）→ (前端模板, 后端模板, 契约模板目录)；底座须 git 仓。"""
     if args.combo:
         if args.combo not in combos:
             p.error(f"未知组合 {args.combo}（可用: {', '.join(combos)}）")
@@ -106,8 +63,10 @@ def main() -> int:
         front_src = resolve_template(combo["frontend"]["source"])
         back_src = resolve_template(combo["backend"]["source"])
         contract_dir = BRIDGE / "combos" / combo.get("contract", args.combo)
+        ensure_git_repo(combo["frontend"]["source"])
+        ensure_git_repo(combo["backend"]["source"])
     else:
-        # 显式模式：按 (frontend, backend) 匹配注册组合取契约模板
+        # 显式模式（逃生舱）：按 (frontend, backend) 匹配注册组合取契约模板；治理属注册组合
         matched = next((n for n, c in combos.items()
                         if resolve_template(c["frontend"]["source"]) == resolve_template(args.frontend)
                         and resolve_template(c["backend"]["source"]) == resolve_template(args.backend)), None)
@@ -115,50 +74,61 @@ def main() -> int:
             p.error(f"未注册组合（{args.frontend} + {args.backend}），无契约模板——请先在 combos.yaml 注册")
         front_src, back_src = args.frontend, args.backend
         contract_dir = BRIDGE / "combos" / matched
+        ensure_git_repo(args.frontend)
+        ensure_git_repo(args.backend)
+    return front_src, back_src, contract_dir
 
-    # ── 用户参数：精选别名（显式）+ -D 透传 ──
-    user_params = {key: getattr(args, alias.lstrip("-").replace("-", "_"))
-                   for alias, key in CURATED_ALIASES.items()
-                   if getattr(args, alias.lstrip("-").replace("-", "_")) is not None}
+
+def collect_user_params(p: argparse.ArgumentParser, args) -> dict:
+    """精选别名（显式传入）+ -D 透传 → 用户参数。"""
+    params = {key: getattr(args, alias.lstrip("-").replace("-", "_"))
+              for alias, key in CURATED_ALIASES.items()
+              if getattr(args, alias.lstrip("-").replace("-", "_")) is not None}
     for item in args.extra:
         if "=" not in item:
             p.error(f"无效 -D 参数: {item}（应为 key=value）")
         k, v = item.split("=", 1)
-        user_params[k] = v
+        params[k] = v
+    return params
+
+
+def generate(project_dir: Path, project_name: str, user_params: dict,
+             front_src: str, back_src: str, contract_dir: Path, skip_tasks: bool) -> None:
+    """生成链：前端/后端 copier → 读 answers 剔除合并 → 契约/README copier。"""
+    front_dir, back_dir, docs_dir = project_dir / "frontend", project_dir / "backend", project_dir / "docs"
+
+    front_data = {"project_name": f"{project_name}-frontend", "project_title": project_name, **user_params}
+    run_copier(front_src, front_dir, front_data, trust=True, skip_tasks=skip_tasks)
+
+    back_data = {"project_name": f"{project_name}-backend", **user_params}
+    run_copier(back_src, back_dir, back_data, trust=True, skip_tasks=skip_tasks)
+
+    front_ans = read_answers(front_dir)
+    back_ans = read_answers(back_dir)
+    merged = merge_answers(front_ans, back_ans, user_params, project_name)
+
+    run_copier(str(contract_dir), docs_dir, merged, trust=False, skip_tasks=False)
+    run_copier(str(BRIDGE / "templates" / "project-README"), project_dir, merged, trust=False, skip_tasks=False)
+
+
+def main() -> int:
+    p = build_parser()
+    args = p.parse_args()
+    validate_cli(p, args)
+
+    combos = load_combos()
+    front_src, back_src, contract_dir = resolve_pipeline(p, args, combos)
+    user_params = collect_user_params(p, args)
 
     project_dir = Path(args.project)
     project_dir.mkdir(parents=True, exist_ok=True)
-    project_name = project_dir.name
-
-    front_dir = project_dir / "frontend"
-    back_dir = project_dir / "backend"
-
-    # ── ①② 前端/后端 copier：project_name 派生 + 全部用户参数（copier 忽略未声明的 -d 键）──
-    front_data = {"project_name": f"{project_name}-frontend", "project_title": project_name, **user_params}
-    run_copier(front_src, front_dir, front_data, trust=True, skip_tasks=args.skip_tasks)
-
-    back_data = {"project_name": f"{project_name}-backend", **user_params}
-    run_copier(back_src, back_dir, back_data, trust=True, skip_tasks=args.skip_tasks)
-
-    # ── ③ 读 answers → 剔除合并（用户参数优先；原始项目名覆盖 answers 后缀名）──
-    front_ans = read_answers(front_dir)
-    back_ans = read_answers(back_dir)
-    merged = {**front_ans, **back_ans, **user_params}
-    merged["project_name"] = project_name
-
-    # ── ④ 契约 copier 模板 → docs/CONTRACT.md ──
-    docs_dir = project_dir / "docs"
-    run_copier(str(contract_dir), docs_dir, merged, trust=False, skip_tasks=False)
-
-    # ── ⑤ 项目 README copier 模板 → README.md ──
-    readme_tmpl = BRIDGE / "templates" / "project-README"
-    run_copier(str(readme_tmpl), project_dir, merged, trust=False, skip_tasks=False)
+    generate(project_dir, project_dir.name, user_params, front_src, back_src, contract_dir, args.skip_tasks)
 
     print(f"\n✅ 项目已生成: {project_dir}")
-    print(f"  {front_dir}/        前端（名 {project_name}-frontend）")
-    print(f"  {back_dir}/         后端（名 {project_name}-backend）")
-    print(f"  {docs_dir}/CONTRACT.md  前后端契约（改动接口前先读它）")
-    print(f"  {project_dir}/README.md  入口说明")
+    print(f"  {project_dir}/frontend/        前端（名 {project_dir.name}-frontend）")
+    print(f"  {project_dir}/backend/         后端（名 {project_dir.name}-backend）")
+    print(f"  {project_dir}/docs/CONTRACT.md  前后端契约（改动接口前先读它）")
+    print(f"  {project_dir}/README.md        入口说明")
     return 0
 
 
