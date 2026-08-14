@@ -1,0 +1,8 @@
+# 项目 README copier 模板（渲染到项目根 README.md）
+_envops:
+  undefined: "jinja2.StrictUndefined"
+_exclude:
+  - "copier.yml"
+project_name:        { type: str }
+project_description: { type: str, default: "" }
+api_base_url:        { type: str, default: "/api" }

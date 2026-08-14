@@ -2,23 +2,26 @@
 组合: python + react
 前端底座: vite-react-spa-template
 后端底座: python-fastapi-template
-契约版本: v0.1
+契约版本: v0.2
 ---
 
-# Python + React 前后端契约
+# {{ project_name }} · Python + React 前后端契约
 
-> 本文件是前后端对接的**单一事实来源**。由整合脚本按后端参数渲染为项目内
-> `docs/CONTRACT.md`，未适用章节自动移除；后端实现与前端实现均据此对齐。
+{% if project_description %}> {{ project_description }}
+{% endif %}
+> 本文件是前后端对接的**单一事实来源**。由整合脚本按实际生成参数（answers）渲染，未适用章节自动移除；后端实现与前端实现均据此对齐。
 
 ## §0 覆盖范围与参数映射
 
-| 后端参数 | 覆盖取值 | 契约影响（关键规则） |
+| 参数 | 覆盖取值 | 契约影响（关键规则） |
 |---|---|---|
 | auth_mode | none / opaque | opaque → §2.4 认证、§2.5 认证码、§3.3 前端认证接线；none → 无认证章节 |
 | with_db | true / false | true → §2.3 分页 |
 | with_redis | true / false | opaque 认证依赖 redis；false 且 opaque → 后端 copier 校验拒绝 |
-| with_child_app | true / false | true → §2.6 子应用 |
-| with_taskqueue | none | 其余取值后端未实现，不覆盖 |
+| with_child_app | true / false | true → §2.6 子应用（按 `child_apps_raw`） |
+| child_apps_raw | name[:prefix] 逗号分隔 | 子应用清单（§2.6） |
+| api_prefix | `/api/v1` 等 | 主应用统一前缀（§2.1）；留空 = 无前缀 |
+| api_base_url | `/api` 等 | 前端 API 基础地址（§4.1） |
 
 ## §1 公共契约
 
@@ -38,7 +41,7 @@ JSON 响应体一律 `{code, msg, data}`，`code` 为 **string**。
 
 ### 2.1 端点组织
 
-- 主应用 `app/api/*.py` 的 APIRouter，无版本前缀（如 `/test`、`/auth`、`/users`）
+- 主应用 `app/api/*.py` 的 APIRouter{% if api_prefix %}，统一挂载于前缀 **`{{ api_prefix }}`**（如 `{{ api_prefix }}/test`）{% else %}，无版本前缀（如 `/test`、`/auth`、`/users`）{% endif %}；新增主应用路由无需关心前缀
 - 错误码常量集中在 `app/const/`，按 §2.5 生成
 
 ### 2.2 统一响应
@@ -47,7 +50,7 @@ JSON 响应体一律 `{code, msg, data}`，`code` 为 **string**。
 - 业务失败：`raise ApiException(code, msg, status_code, data)` → `{code, msg, data}` + 对应 HTTP 状态
 - `response_model=Response[T]` 仅用于 OpenAPI 文档，实际返回 JSONResponse
 
-{% if with_db == 'true' %}
+{% if with_db %}
 ### 2.3 分页
 
 - 请求参数：Paginator `{page=1, page_size=20}`（均 ge=1），对应前端 `PageParams`
@@ -59,7 +62,7 @@ JSON 响应体一律 `{code, msg, data}`，`code` 为 **string**。
 
 - 登录/注册属业务代码；签发调用 `AuthAppService.issue_tokens(user_id)` → `{access_token, refresh_token, access_expires_in, user{id}}`
 - 受保护路由声明 `current_user: CurrentUser`；请求头 **`x-access-token`**
-- 刷新：`POST /auth/refresh`，`{refresh_token}` → `{access_token, refresh_token, access_expires_in}`
+- 刷新：`POST {{ api_prefix }}/auth/refresh`，`{refresh_token}` → `{access_token, refresh_token, access_expires_in}`
 - 会话：Redis `auth:session:{sid}`；token 格式 `{session_id}.{secret}`
 
 ### 2.5 错误码表（码由后端定义，常量生成放 `app/const/`）
@@ -83,10 +86,11 @@ JSON 响应体一律 `{code, msg, data}`，`code` 为 **string**。
 | 50000 | 服务端内部错误 | 500 |
 {% endif %}
 
-{% if with_child_app == 'true' %}
+{% if with_child_app %}
 ### 2.6 子应用
 
-- 子应用挂载 `/{prefix}`，自带中间件与异常处理器
+- 按 `child_apps_raw`（`{{ child_apps_raw }}`）生成多实例：`{name[:prefix]}` 逗号分隔，前缀缺省等于子应用名
+- 子应用挂载 `/{prefix}`（**不受 `api_prefix` 影响**），自带中间件与异常处理器
 - 自带 demo 端点 `/{prefix}/info`、`/{prefix}/echo`
 {% endif %}
 
@@ -106,14 +110,15 @@ JSON 响应体一律 `{code, msg, data}`，`code` 为 **string**。
 按 `frontend/docs/development.md` §7，但本契约强制两点差异：
 
 - 请求头用 **`x-access-token`**（非文档示例的 `Authorization: Bearer`）
-- 401 无感刷新：`status=401 且 code=40102` → 取 `data.refresh_token` → lockGate 单飞 `POST /auth/refresh` → 用新 token 重放原请求；`40103` → 清 token 跳登录
+- 401 无感刷新：`status=401 且 code=40102` → 取 `data.refresh_token` → lockGate 单飞 `POST {{ api_prefix }}/auth/refresh` → 用新 token 重放原请求；`40103` → 清 token 跳登录
 {% endif %}
 
 ## §4 开发接线
 
 ### 4.1 baseURL 与代理
 
-- 前端占位符 `apiBaseUrl` = `/api`；vite proxy `/api → http://localhost:8000`（rewrite 去掉 `/api`）
+- 前端 `apiBaseUrl` = **`{{ api_base_url }}`**（生成时已写入前端配置）
+- 开发期：在 `frontend/vite.config.ts` 启用 proxy，把 `{{ api_base_url }}` 代理到 `http://localhost:8000`（rewrite 去掉 `{{ api_base_url }}` 前缀）
 - 后端 `config.yaml` 的 `app.port = 8000`
 
 ### 4.2 CORS
@@ -123,7 +128,7 @@ JSON 响应体一律 `{code, msg, data}`，`code` 为 **string**。
 
 ### 4.3 连通验证
 
-- 基础：前端 `GET /test/`（公开）→ `data.request_id` 非空即通
+- 基础：前端 `GET {{ api_prefix }}/test/`（公开）→ `data.request_id` 非空即通
 {% if auth_mode == 'opaque' %}
 - 全链路：登录签发 → 受保护接口 → 过期（401+40102）→ 刷新 → 重放
 {% endif %}
