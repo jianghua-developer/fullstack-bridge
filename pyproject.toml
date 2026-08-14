@@ -19,3 +19,5 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# 根目录入 sys.path（替代根 conftest.py）：bridge/ 与入口脚本可导入
+pythonpath = ["."]
