@@ -85,12 +85,11 @@ combos:
 
 | 项 | 说明 |
 |---|---|
-| 前端/后端生成 | `copier`（系列底座模板） |
-| 契约/README 渲染 | `copier`（组合模板） |
-| 桥脚本 | Python 3 + `pyyaml`（`.venv`） |
+| 前端/后端生成 | `copier`（系列底座模板，CLI） |
+| 契约/README 渲染 | `copier`（组合模板，CLI） |
+| 桥脚本 | Python 3 + `pyyaml`（依赖声明在 `pyproject.toml`，uv 管理） |
 
 ```bash
-# 重建桥环境
-uv venv .venv
-uv pip install --python .venv/bin/python pyyaml
+# 重建桥环境（按 pyproject.toml）
+uv sync
 ```
