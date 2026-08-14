@@ -18,6 +18,8 @@ with_child_app:      { type: bool }
 child_apps_raw:
   type: str
   when: "{{ with_child_app }}"
+# 派生参数 child_apps：与后端底座 python-fastapi-template 的 child_apps 派生逻辑保持同步
+# （后端改派生时此处须同步更新；检查链只做原生参数的字面读取，派生值由 copier 计算）
 child_apps:
   type: yaml
   when: false
