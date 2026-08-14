@@ -14,6 +14,7 @@
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -71,6 +72,67 @@ def declared_params(combo_name: str) -> set[str] | None:
     return {k for k in data if not k.startswith("_")}
 
 
+def has_condition_for(text: str, pname: str) -> bool:
+    """契约是否条件引用该参数（支持 {{ }} / [[ ]] 两种 envops 标签）。"""
+    return bool(re.search(r"(?:if|elif)\s+" + re.escape(pname) + r"\b", text))
+
+
+def has_else_for(text: str, pname: str) -> bool:
+    """参数的条件块（if/elif <pname> → 匹配 endif）内是否带 else。"""
+    tags = list(re.finditer(r"[{%\[]\s*(if|elif|else|endif)\b([^%\]}]*)", text))
+    for i, m in enumerate(tags):
+        stmt, rest = m.group(1), m.group(2)
+        if stmt in ("if", "elif") and re.search(rf"\b{re.escape(pname)}\b", rest):
+            depth = 0
+            for m2 in tags[i + 1:]:
+                s2 = m2.group(1)
+                if s2 == "if":
+                    depth += 1
+                elif s2 == "endif":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                elif s2 == "else" and depth == 0:
+                    return True
+    return False
+
+
+def coverage_report(combo_name: str, params: dict, declared: set[str] | None = None) -> tuple[list[str], list[str]]:
+    """检查 2：底座 enabled choices vs 契约显式覆盖（启发式扫描）。
+
+    hard     = 启用取值未显式覆盖且无 else 兜底（渲染为空，真缺口）→ 未对齐
+    advisory = 启用取值未显式覆盖但经 else 兜底（请确认语义）→ 提示
+
+    只检查契约声明集（combos/<combo>/copier.yml）内的参数——声明集外的底座参数
+    （如 python_version / db_dialect / with_taskqueue）契约本就不覆盖，不判缺口。
+    """
+    cp = BRIDGE / "combos" / combo_name / "CONTRACT.md.jinja"
+    if not cp.exists():
+        return [f"缺契约模板 {cp}"], []
+    text = cp.read_text(encoding="utf-8")
+    hard, advisory = [], []
+    for pname, spec in sorted(params.items()):
+        if declared is not None and pname not in declared:
+            continue
+        choices = [c["value"] for c in spec.get("choices", []) if not c.get("disabled")]
+        if not choices:
+            continue
+        if not has_condition_for(text, pname):
+            hard.append(f"「{pname}」契约未条件引用（启用取值 {choices} 均未处理）")
+            continue
+        explicit = set(re.findall(
+            rf"(?:if|elif)\s+{re.escape(pname)}\s*==\s*['\"]([^'\"]+)['\"]", text))
+        has_else = has_else_for(text, pname)
+        for v in choices:
+            if v in explicit:
+                continue
+            if has_else:
+                advisory.append(f"「{pname}」启用取值「{v}」未显式覆盖（经 else 兜底，请确认语义）")
+            else:
+                hard.append(f"「{pname}」启用取值「{v}」契约未覆盖（无 else 兜底，渲染为空）")
+    return hard, advisory
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="fullstack-bridge 检查链")
     ap.add_argument("--combo", help="检查指定组合")
@@ -120,19 +182,29 @@ def main() -> int:
             else:
                 print(f"✓ [{name} {end}] {src} 对齐基线 {pinned}")
 
+        # 底座当前参数并集（dict：name → spec）
+        union_params = {}
+        for end in ("frontend", "backend"):
+            cur, _ = read_params(resolve_base(combo[end]["source"]), None)
+            if cur:
+                union_params.update(cur.get("params", {}))
+
         declared = declared_params(name)
         if declared is not None:
-            union = set()
-            for end in ("frontend", "backend"):
-                cur, _ = read_params(resolve_base(combo[end]["source"]), None)
-                if cur:
-                    union |= set(cur.get("params", {}))
-            missing = declared - union
+            missing = declared - set(union_params)
             if missing:
                 print(f"⚠️ [{name}] 契约声明参数不在底座参数并集（可能版本未对齐）: {sorted(missing)}")
                 drift = True
             else:
                 print(f"✓ [{name}] 契约声明参数 ⊆ 底座参数并集")
+
+        # 检查 2：底座 enabled choices vs 契约显式覆盖（启发式，限契约声明集）
+        hard, advisory = coverage_report(name, union_params, declared)
+        for msg in hard:
+            print(f"⚠️ [{name}] 检查2 未覆盖: {msg}")
+            drift = True
+        for msg in advisory:
+            print(f"ℹ️ [{name}] 检查2 提示: {msg}")
 
     print("\n" + ("❌ 存在漂移/未对齐" if drift else "✅ 全部对齐"))
     return 1 if drift else 0
