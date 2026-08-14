@@ -54,33 +54,38 @@ def validate_cli(p: argparse.ArgumentParser, args) -> None:
         p.error("--frontend 与 --backend 必须同时出现")
 
 
+def _combo_config(combo: dict, combo_name: str) -> tuple[str, str, Path, dict]:
+    """组合定义 → (前端模板, 后端模板, 契约模板目录, stack 元数据)。"""
+    front_src = resolve_template(combo["frontend"]["source"])
+    back_src = resolve_template(combo["backend"]["source"])
+    contract_dir = BRIDGE / "combos" / combo.get("contract", combo_name)
+    return front_src, back_src, contract_dir, combo.get("stack", {})
+
+
+def _ensure_git(sources: list[str]) -> None:
+    """底座必须是 git 仓（检查链依赖 git 基线）；非 git 直接拒绝。"""
+    for src in sources:
+        ensure_git_repo(src)
+
+
 def resolve_pipeline(p: argparse.ArgumentParser, args, combos: dict) -> tuple[str, str, Path, dict]:
-    """组合解析（模式 A/B）→ (前端模板, 后端模板, 契约模板目录, stack 元数据)；底座须 git 仓。"""
+    """组合解析（模式 A/B）→ 4 元组；底座须 git 仓。"""
     if args.combo:
-        if args.combo not in combos:
+        combo = combos.get(args.combo)
+        if not combo:
             p.error(f"未知组合 {args.combo}（可用: {', '.join(combos)}）")
-        combo = combos[args.combo]
-        front_src = resolve_template(combo["frontend"]["source"])
-        back_src = resolve_template(combo["backend"]["source"])
-        contract_dir = BRIDGE / "combos" / combo.get("contract", args.combo)
-        stack = combo.get("stack", {})
-        ensure_git_repo(combo["frontend"]["source"])
-        ensure_git_repo(combo["backend"]["source"])
-    else:
-        # 显式模式（逃生舱）：按 (frontend, backend) 匹配注册组合取契约模板；治理属注册组合
-        matched = next((n for n, c in combos.items()
-                        if resolve_template(c["frontend"]["source"]) == resolve_template(args.frontend)
-                        and resolve_template(c["backend"]["source"]) == resolve_template(args.backend)), None)
-        if not matched:
-            hint = "；git 地址与裸名解析永不相等，git 地址模式不提供契约" if (
-                is_url(args.frontend) or is_url(args.backend)) else ""
-            p.error(f"未注册组合（{args.frontend} + {args.backend}），无契约模板——请先在 combos.yaml 注册{hint}")
-        front_src, back_src = args.frontend, args.backend
-        contract_dir = BRIDGE / "combos" / matched
-        stack = combos[matched].get("stack", {})
-        ensure_git_repo(args.frontend)
-        ensure_git_repo(args.backend)
-    return front_src, back_src, contract_dir, stack
+        _ensure_git([combo["frontend"]["source"], combo["backend"]["source"]])
+        return _combo_config(combo, args.combo)
+    # 显式模式（逃生舱）：按 (frontend, backend) 匹配注册组合；治理属注册组合
+    matched = next((n for n, c in combos.items()
+                    if resolve_template(c["frontend"]["source"]) == resolve_template(args.frontend)
+                    and resolve_template(c["backend"]["source"]) == resolve_template(args.backend)), None)
+    if not matched:
+        hint = "；git 地址与裸名解析永不相等，git 地址模式不提供契约" if (
+            is_url(args.frontend) or is_url(args.backend)) else ""
+        p.error(f"未注册组合（{args.frontend} + {args.backend}），无契约模板——请先在 combos.yaml 注册{hint}")
+    _ensure_git([args.frontend, args.backend])
+    return _combo_config(combos[matched], matched)
 
 
 def collect_user_params(p: argparse.ArgumentParser, args) -> dict:

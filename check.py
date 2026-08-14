@@ -43,11 +43,9 @@ def select_targets(p: argparse.ArgumentParser, args, combos: dict) -> dict:
     p.error("请给 --combo 或 --all（或 --base-repo --base-version）")
 
 
-def check_combo(name: str, combo: dict, base_repo: str | None, base_version: str | None) -> bool:
-    """检查单个组合：检查 1（漂移 + 子集）+ 检查 2（覆盖）。返回是否发现未对齐。"""
+def _check_drift(name: str, combo: dict, base_repo: str | None, base_version: str | None) -> bool:
+    """检查 1a：pinned 基线 vs 当前/信号版本 漂移。"""
     drift = False
-
-    # 检查 1a：pinned 基线 vs 当前/信号版本 漂移
     for end in ("frontend", "backend"):
         src, pinned = combo[end]["source"], combo[end]["version"]
         base_dir = resolve_base(src)
@@ -67,32 +65,50 @@ def check_combo(name: str, combo: dict, base_repo: str | None, base_version: str
             drift = True
         else:
             print(f"✓ [{name} {end}] {src} 对齐基线 {pinned}")
+    return drift
 
-    # 底座当前参数并集（dict：name → spec）
-    union_params = {}
+
+def _union_params(combo: dict) -> dict:
+    """底座当前参数并集（dict：name → spec）。"""
+    union = {}
     for end in ("frontend", "backend"):
         cur, _ = read_params(resolve_base(combo[end]["source"]), None)
         if cur:
-            union_params.update(cur.get("params", {}))
+            union.update(cur.get("params", {}))
+    return union
 
-    # 检查 1b：契约声明参数 ⊆ 底座参数并集
-    declared = declared_params(name)
-    if declared is not None:
-        missing = declared - set(union_params)
-        if missing:
-            print(f"⚠️ [{name}] 契约声明参数不在底座参数并集（可能版本未对齐）: {sorted(missing)}")
-            drift = True
-        else:
-            print(f"✓ [{name}] 契约声明参数 ⊆ 底座参数并集")
 
-    # 检查 2：底座 enabled choices vs 契约显式覆盖（启发式，限契约声明集）
+def _check_subset(name: str, union_params: dict, declared: set[str] | None) -> bool:
+    """检查 1b：契约声明参数 ⊆ 底座参数并集。"""
+    if declared is None:
+        return False
+    missing = declared - set(union_params)
+    if missing:
+        print(f"⚠️ [{name}] 契约声明参数不在底座参数并集（可能版本未对齐）: {sorted(missing)}")
+        return True
+    print(f"✓ [{name}] 契约声明参数 ⊆ 底座参数并集")
+    return False
+
+
+def _check_coverage(name: str, union_params: dict, declared: set[str] | None) -> bool:
+    """检查 2：底座 enabled choices vs 契约显式覆盖（启发式，限契约声明集）。"""
+    drift = False
     hard, advisory = coverage_report(name, union_params, declared)
     for msg in hard:
         print(f"⚠️ [{name}] 检查2 未覆盖: {msg}")
         drift = True
     for msg in advisory:
         print(f"ℹ️ [{name}] 检查2 提示: {msg}")
+    return drift
 
+
+def check_combo(name: str, combo: dict, base_repo: str | None, base_version: str | None) -> bool:
+    """检查单个组合（检查 1 漂移/子集 + 检查 2 覆盖）。返回是否发现未对齐。"""
+    drift = _check_drift(name, combo, base_repo, base_version)
+    union = _union_params(combo)
+    declared = declared_params(name)
+    drift |= _check_subset(name, union, declared)
+    drift |= _check_coverage(name, union, declared)
     return drift
 
 
