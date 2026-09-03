@@ -24,7 +24,7 @@ my-app/
 | `bridge/` | 共享库包：`combos.py`（units/edges 解析 + 底座统一 clone + param_schema）、`copier.py`（执行）、`answers.py`（剔除合并） |
 | `combos.yaml` | 多端治理真源：`bases` 注册表 + `combos`（units≥2 + edges + version 基线 + units.{key}.{app,stack} README 元数据） |
 | `combos/<组合>/` | 契约 copier 模板（`copier.yml` 全必填零默认 + `CONTRACT.md.jinja`，可用派生参数枚举） |
-| `templates/project-README/` | 项目 README copier 模板（技术栈来自 combos.yaml stack） |
+| `templates/project-README/` | 项目 README copier 模板（cli.py 从 combos.yaml `units.{key}.{app,stack}` 装配 `units_desc` 注入渲染） |
 | `.github/scripts/clone-bases.py` | 统一底座获取：克隆到缓存（CI 预克隆 + 打包烘焙 params.json） |
 | `.github/workflows/` | `check-drift`（收底座信号）+ `bridge-gate`（改 combos 时校验）+ `build-executable` |
 
