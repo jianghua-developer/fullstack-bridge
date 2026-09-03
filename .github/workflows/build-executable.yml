@@ -1,0 +1,36 @@
+# build-executable — PyInstaller 打包 integrate 为单文件可执行，上传产物 / 发布 GitHub Release。
+# 触发：发版 tag（v*，自动打包 + 发布）；手动 workflow_dispatch（产 artifact 供测试）。
+# 注：本 workflow 产 Linux 二进制；跨平台可在 jobs.build 加 matrix（macos-latest / windows-latest）。
+name: build-executable
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # 发布 GitHub Release 需写权限
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 装 uv
+        run: pip install uv
+      - name: 同步依赖（dev 组含 pyinstaller；copier 运行时依赖）
+        run: uv sync --dev
+      - name: PyInstaller 打包单文件
+        run: uv run pyinstaller integrate.spec
+      - name: 上传产物（artifact，供测试/分发）
+        uses: actions/upload-artifact@v4
+        with:
+          name: integrate-linux-${{ github.ref_name }}
+          path: dist/integrate
+      - name: 发布 GitHub Release（仅 tag 触发）
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" dist/integrate --generate-notes
