@@ -107,7 +107,7 @@ def merge_order(combo)        # edges 展平：consumer→provider 序（含中�
 ### 2.3 参数 schema 源：各 unit params.json（derive，不抄清单）
 
 - 本轮定案：**共享/私有参数不手抄进 combos.yaml**；schema 全部来自各 unit 底座 params.json 并集；
-- `param_schema(combo)`：遍历 units 读 params.json → 并集 → `derived:true` 过滤不暴露 → 跨 unit 同名合并为共享（去重成一个选项）→ 返回结构化 schema（type/choices/default/derived）。
+- `param_schema(combo)`：遍历 units 读 params.json → 并集 → **暴露全部 `derived:false` 原生参数**（含派生参数的**输入**——如 `child_apps_raw` 本身是原生、会暴露，用户填它、copier 才算 `child_apps`）；**仅 `derived:true` 纯派生值不暴露**（由 copier 计算）→ 跨 unit 同名合并为共享（去重成一个选项）→ 返回结构化 schema（type/choices/default/derived）。
 
 ### 2.4 integrate 生成链
 
@@ -155,7 +155,7 @@ for combo in load_combos():
     group.add_command(cmd)
 ```
 
-- `param_schema(combo)`（§2.3）：读各 unit params.json 并集 → `derived:true` 不暴露 → 跨端共享同名（auth_mode）**去重成单选项**，值广播到两端 copier（merge 已保证属主）。
+- `param_schema(combo)`（§2.3）：读各 unit params.json 并集 → **暴露 `derived:false` 原生参数**（派生输入的 `child_apps_raw` 属此类，会暴露；用户填它、copier 算 `child_apps`），**仅 `derived:true` 纯派生值不暴露** → 跨端共享同名（auth_mode）**去重成单选项**，值广播到两端 copier（merge 已保证属主）。
 - **删 `-D` + 精选别名**（⑦ 定案）——schema 数据驱动后无需自由透传；底座加参数 = params.json 自动出现选项（零桥改动保留）。
 
 ### 3.3 删逃生舱连带
