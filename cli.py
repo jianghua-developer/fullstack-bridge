@@ -27,6 +27,7 @@ from bridge.combos import (
     merge_order,
     param_schema,
     resolve_template,
+    validate_all_combos,
 )
 from bridge.integrate.answers import merge_answers_by, read_answers
 from bridge.integrate.copier import run_copier
@@ -53,12 +54,37 @@ def _spec_to_click(name: str, spec: dict) -> click.Option:
     return click.Option([f"--{name.replace('_', '-')}"], **kwargs)
 
 
-def _build_generate_group() -> click.Group:
-    """为每个注册 combo 动态建 generate 子命令（选项 = 该 combo schema）。"""
-    group = click.Group("generate", help="生成组合项目：<combo> <project> [选项…]")
-    combos = load_combos()
+class LazyGenerateGroup(click.Group):
+    """generate 组：combo 子命令**惰性构建**（B2 修复）。
 
-    def make_cmd(combo_name: str, cdef: dict):
+    仅在解析真正落到某 combo 时才求其 schema（`get_command` 时）——顶层
+    `check` / `--help` 完全不触发 clone/checkout，零触网；任一 combo schema
+    构建失败（缺 params.json / version 不可 checkout / source 异常）仅告警并
+    跳过，不拖死整 CLI。
+    """
+
+    def list_commands(self, ctx):
+        return sorted(load_combos())
+
+    def invoke(self, ctx):
+        validate_all_combos()
+        return super().invoke(ctx)
+
+    def get_command(self, ctx, cmd_name):
+        if cmd_name not in self.commands:
+            combos = load_combos()
+            if cmd_name not in combos:
+                return None
+            try:
+                cmd = self._make_cmd(cmd_name, combos[cmd_name])
+            except SystemExit as e:
+                click.echo(f"⚠️ 组合 {cmd_name} schema 构建失败，已跳过: {e}", err=True)
+                return None
+            self.add_command(cmd)
+        return super().get_command(ctx, cmd_name)
+
+    @staticmethod
+    def _make_cmd(combo_name: str, cdef: dict) -> click.Command:
         schema = param_schema(combo_name, cdef)
         params: list = [click.Argument(["project"])]
         for pname, spec in sorted(schema.items()):
@@ -75,17 +101,17 @@ def _build_generate_group() -> click.Group:
         def callback(project, skip_tasks, **kwargs):
             _do_generate(combo_name, cdef, Path(project), kwargs, skip_tasks)
 
-        cmd = click.Command(
+        return click.Command(
             name=combo_name,
             params=params,
             callback=callback,
             help=f"生成 {combo_name} 组合项目",
         )
-        return cmd
 
-    for name, cdef in combos.items():
-        group.add_command(make_cmd(name, cdef))
-    return group
+
+def _build_generate_group() -> click.Group:
+    """返回惰性 generate 组（子命令按需构建）。"""
+    return LazyGenerateGroup("generate", help="生成组合项目：<combo> <project> [选项…]")
 
 
 def _do_generate(
@@ -164,6 +190,12 @@ def _declared_or_warn(combo_name: str) -> set[str] | None:
 def _check_drift(
     name: str, combo: dict, base_repo: str | None, base_version: str | None
 ) -> bool:
+    """漂移检查：pinned（combos.yaml version）vs 当前底座状态。
+
+    当前状态参照（B1 修复）：有 base_version 信号 → 该 ref（check-drift workflow）；
+    否则 → 底座远端默认分支 `origin/HEAD`（clone 缓存的最新，非会被 generate
+    checkout 污染的工作树）。若 origin 无该 ref（无远端/未 fetch），回退工作树并提示。
+    """
     from bridge.check.params import diff_params, read_params
     from bridge.combos import resolve_base
 
@@ -176,14 +208,22 @@ def _check_drift(
             print(f"✗ [{name} {key}] {err}")
             drift = True
             continue
-        cur_ref = base_version if (base_repo and src == base_repo) else None
+        cur_ref = base_version if (base_repo and src == base_repo) else "origin/HEAD"
         new, err = read_params(base_dir, cur_ref)
         if err:
-            print(f"✗ [{name} {key}] {err}")
-            drift = True
-            continue
+            # origin/HEAD 不存在（本地底座/未 fetch）→ 回退工作树
+            new, err2 = read_params(base_dir, None)
+            if err2:
+                print(f"✗ [{name} {key}] {err}; {err2}")
+                drift = True
+                continue
+            cur_ref = None
         diffs = diff_params(old, new)
-        who = f"信号版本 {cur_ref}" if cur_ref else "当前工作树"
+        who = (
+            f"信号版本 {base_version}"
+            if cur_ref == base_version
+            else ("远端 origin/HEAD" if cur_ref else "当前工作树")
+        )
         if diffs:
             print(f"⚠️ [{name} {key}] 底座 {src} 漂移（基线 {pinned} vs {who}）:")
             for d in diffs:

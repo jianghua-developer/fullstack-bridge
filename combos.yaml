@@ -1,7 +1,7 @@
 # combos.yaml — 多端组合治理真源（units≥2 + edges；单模板形态不在桥，走能力层 generate_single）
 # bases：底座 git 地址注册表（统一 clone 底座用）——source 裸名在此解析 git 地址，一律 clone 到缓存
 # units：key = 生成目录名 + project_name 后缀；每项 {source, version}
-#   source：系列底座名（→ bases 注册表 git 地址）或显式 git 地址/本地路径（逃生保留，无契约治理）
+#   source：系列底座注册裸名（→ bases 注册表 git 地址）——多端只认注册组合（Q4），不支持显式 URL/本地路径
 #   version：该组合已复核/对齐到的底座 git 版本（手动维护，非自动更新）——check 以此为基线；生成统一 clone+checkout
 # edges：有序对 [consumer, provider]，provider 为契约属主；必填显式，支持多 edge
 # 契约目录固定 = combos/<combo>（copier.yml 声明契约参数并集）

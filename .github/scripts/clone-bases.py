@@ -20,7 +20,9 @@ from pathlib import Path
 import yaml
 
 BRIDGE = Path(__file__).resolve().parent.parent.parent  # .github/scripts/ → 桥根
-BASE_CACHE = Path.home() / ".cache" / "fullstack-bridge" / "bases"
+# N1：BASE_CACHE 单一真源在 bridge.combos，共享导入（不双写）
+sys.path.insert(0, str(BRIDGE))
+from bridge.combos import BASE_CACHE  # noqa: E402  （脚本级导入，路径先于导入）
 
 
 def main() -> int:

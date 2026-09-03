@@ -1,25 +1,18 @@
-"""bridge.combos 单元测试（units/edges/merge_order/统一 clone）。"""
+"""bridge.combos 单元测试（units/edges/merge_order/形态校验/统一 clone）。"""
 
 import pytest
 
 from bridge.combos import (
     edge_pairs,
-    ensure_git_repo,
-    is_url,
     iter_units,
     load_combos,
     merge_order,
     param_schema,
     resolve_base,
     resolve_template,
+    validate_all_combos,
+    validate_combo,
 )
-
-
-def test_is_url():
-    assert is_url("git@github.com:jianghua-developer/x.git")
-    assert is_url("https://github.com/x/y.git")
-    assert not is_url("vite-react-spa-template")
-    assert not is_url("/home/jeff/project/x/template")
 
 
 def test_iter_units_and_sources():
@@ -79,15 +72,27 @@ def test_resolve_base_returns_repo_root():
     assert (b / "params.json").exists()
 
 
-def test_resolve_base_url_raises():
-    with pytest.raises(ValueError):
-        resolve_base("git@github.com:x/y.git")
+def test_validate_combo_ok():
+    validate_combo("python-react", load_combos()["python-react"])  # 不抛
 
 
-def test_ensure_git_repo_explicit_local(tmp_path):
-    """显式本地路径须为 git 检出；非 git 拒绝。"""
+def test_validate_combo_rejects_single_unit():
     with pytest.raises(SystemExit):
-        ensure_git_repo(str(tmp_path))
+        validate_combo("solo", {"units": {"only": {}}, "edges": [["only", "only"]]})
+
+
+def test_validate_combo_rejects_missing_edges():
+    with pytest.raises(SystemExit):
+        validate_combo("no-edge", {"units": {"a": {}, "b": {}}})
+
+
+def test_validate_combo_rejects_bad_edge_key():
+    with pytest.raises(SystemExit):
+        validate_combo("bad", {"units": {"a": {}, "b": {}}, "edges": [["a", "zzz"]]})
+
+
+def test_validate_all_combos_registered():
+    validate_all_combos()  # 注册组合应全部通过形态校验
 
 
 def test_param_schema_exposes_native_hides_derived():

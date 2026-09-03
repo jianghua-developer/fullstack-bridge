@@ -1,9 +1,15 @@
-"""cli.py 单元测试：Click group 结构 + generate schema 选项。"""
+"""cli.py 单元测试：Click group 结构 + generate schema 选项（惰性构建）。"""
 
+import click
 from click.testing import CliRunner
 
 from cli import _build_generate_group, build_bridge_group
 from bridge.combos import load_combos
+
+
+def _get_combo_cmd(group, name):
+    """惰性组：经 get_command 触发构建（需 ctx）。"""
+    return group.get_command(click.Context(group), name)
 
 
 def test_bridge_group_has_generate_and_check():
@@ -12,15 +18,17 @@ def test_bridge_group_has_generate_and_check():
     assert {"generate", "check"} <= names
 
 
-def test_generate_group_has_combo_subcommands():
+def test_generate_group_lists_all_combos():
+    """list_commands（不触网）列出全部注册组合。"""
     group = _build_generate_group()
-    assert set(group.commands) == set(load_combos())
+    assert set(group.list_commands(click.Context(group))) == set(load_combos())
 
 
 def test_generate_combo_option_schema():
-    """python-react 子命令选项 = 底座 params.json schema（数据驱动）。"""
+    """python-react 子命令选项 = 底座 params.json schema（数据驱动，惰性构建）。"""
     group = _build_generate_group()
-    cmd = group.commands["python-react"]
+    cmd = _get_combo_cmd(group, "python-react")
+    assert cmd is not None
     opt_names = {p.name for p in cmd.params}
     assert "project" in opt_names  # 位置参数
     assert "auth_mode" in opt_names  # 原生参数（共享）暴露
@@ -30,16 +38,32 @@ def test_generate_combo_option_schema():
     assert "skip_tasks" in opt_names
 
 
+def test_generate_broken_combo_degrades(monkeypatch):
+    """坏 combo（schema 构建失败）→ get_command 返回 None 且不抛（B2 降级）。"""
+    import cli as cli_mod
+
+    def _boom(*a, **k):
+        raise SystemExit("❌ 模拟 schema 失败")
+
+    monkeypatch.setattr(cli_mod, "param_schema", _boom)
+    group = _build_generate_group()
+    assert group.get_command(click.Context(group), "python-react") is None
+    assert "python-react" not in group.commands  # 未建成，不拖死
+
+
 def test_generate_help_smoke():
-    """--help 不报错（schema 已读底座 params.json）。"""
+    """--help 不报错且不触发 schema（零触网）。"""
     runner = CliRunner()
     group = build_bridge_group()
-    res = runner.invoke(group, ["generate", "python-react", "--help"])
+    res = runner.invoke(group, ["generate", "--help"])
     assert res.exit_code == 0
-    assert "PROJECT" in res.output
+    assert "python-react" in res.output
 
 
-def test_generate_unknown_combo():
+def test_check_help_smoke():
+    """check --help 不触发 generate schema（B2：check 路径零触网）。"""
+    runner = CliRunner()
     group = build_bridge_group()
-    # 未知 combo 无子命令 → click 报 no such command
-    assert "nope" not in group.commands["generate"].commands
+    res = runner.invoke(group, ["check", "--help"])
+    assert res.exit_code == 0
+    assert "combo" in res.output

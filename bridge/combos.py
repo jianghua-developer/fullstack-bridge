@@ -3,7 +3,8 @@
 设计（refactor-step-design §1/§2）：
 - 底座一律 clone 到缓存并 checkout combos.yaml version——无源码兄弟目录分支；
 - params.json 从缓存 clone 读（钉 version 后 checkout，天然对齐）；
-- 显式本地路径 / git URL 原样（dev/逃生保留），但裸名 = 一律 clone。
+- source 为注册裸名（bases 注册表）——与 generation-architecture Q4 一致，
+  多端只认注册组合，不支持显式 URL/本地路径（单模板形态走能力层 generate_single）。
 """
 
 import json
@@ -20,15 +21,25 @@ _FROZEN = getattr(sys, "frozen", False)
 COMBO_FILE = BRIDGE / "combos.yaml"
 # 底座统一克隆缓存（combos.yaml version checkout）——clone-bases.py / spec 共享
 BASE_CACHE = Path.home() / ".cache" / "fullstack-bridge" / "bases"
-_BASE_CACHE = BASE_CACHE  # 内部别名（保留旧引用兼容）
 
 
 def load_combos() -> dict:
     return yaml.safe_load(COMBO_FILE.read_text(encoding="utf-8"))["combos"]
 
 
-def is_url(source: str) -> bool:
-    return "://" in source or source.startswith("git@")
+def validate_combo(combo_name: str, combo: dict) -> None:
+    """形态约束（S3）：units≥2、edges 必填非空、边端点合法。桥只管 N≥2。"""
+    units = combo.get("units", {})
+    if not isinstance(units, dict) or len(units) < 2:
+        raise SystemExit(f"❌ 组合 {combo_name} units < 2——桥只管理多单元组合（N≥2）")
+    if not combo.get("edges"):
+        raise SystemExit(f"❌ 组合 {combo_name} 缺 edges（必填显式）")
+    edge_pairs(combo)  # 端点合法性校验（缺 key 抛错）
+
+
+def validate_all_combos() -> None:
+    for name, combo in load_combos().items():
+        validate_combo(name, combo)
 
 
 def _load_bases() -> dict:
@@ -87,7 +98,7 @@ def _ensure_base(source: str, version: str | None = None) -> Path:
     url = _load_bases().get(source)
     if not url:
         raise SystemExit(f"❌ combos.yaml bases 未配置「{source}」的 git 地址")
-    dest = _BASE_CACHE / source
+    dest = BASE_CACHE / source
     if not (dest / ".git").exists():
         dest.parent.mkdir(parents=True, exist_ok=True)
         print(f"↻ clone {url} → {dest}")
@@ -99,50 +110,48 @@ def _ensure_base(source: str, version: str | None = None) -> Path:
             text=True,
         ).stdout.strip()
         if cur != version:
-            subprocess.run(["git", "-C", str(dest), "checkout", version], check=True)
+            _checkout_or_fetch(dest, version)
     return dest
 
 
-def resolve_template(source: str, version: str | None = None) -> str:
-    """底座 → 模板目录（template/ 子目录）；显式路径/git URL 原样。
+def _checkout_or_fetch(dest: Path, version: str) -> None:
+    """checkout 到 version；本地缺该 sha（缓存旧）→ fetch origin 后重试（S4）。"""
+    r = subprocess.run(
+        ["git", "-C", str(dest), "checkout", version],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode == 0:
+        return
+    print(f"↻ 本地缺 {version[:12]}——fetch origin 后重试")
+    subprocess.run(["git", "-C", str(dest), "fetch", "origin"], check=True)
+    r = subprocess.run(
+        ["git", "-C", str(dest), "checkout", version],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode != 0:
+        raise SystemExit(
+            f"❌ 底座 {dest.name} checkout {version} 失败（fetch 后仍不可得）: "
+            f"{r.stderr.strip()}"
+        )
 
-    裸名一律 clone 缓存 + checkout version（无源码兄弟目录分支）。
+
+def resolve_template(source: str, version: str | None = None) -> str:
+    """底座（注册裸名）→ 模板目录 template/：clone 缓存 + checkout version。
+
+    source 须为 bases 注册裸名（S1：与 Q4 一致，多端只认注册组合）。
     """
-    if is_url(source) or source.startswith(("/", "./", "../")):
-        return source
     base = _ensure_base(source, version)
     return str(base / "template")
 
 
 def resolve_base(source: str, version: str | None = None) -> Path:
-    """底座 git 仓库根：裸名 → 缓存 clone（checkout version）；显式路径原样。
+    """底座（注册裸名）git 仓库根：clone 缓存 + checkout version。
 
     check 读 params.json 用（git show / 工作树皆可，clone 得全量历史）。
     """
-    if is_url(source):
-        raise ValueError(f"git 地址需先克隆才能解析本地 base: {source}")
-    if source.startswith(("/", "./", "../")):
-        return Path(source)
     return _ensure_base(source, version)
-
-
-def ensure_git_repo(source: str) -> None:
-    """底座必须可解析为 git 仓。裸名经 clone 天然是；显式本地路径须为 git 检出。"""
-    if is_url(source):
-        return  # git URL，clone 时得 git
-    if source.startswith(("/", "./", "../")):
-        target = Path(source)
-        r = subprocess.run(
-            ["git", "-C", str(target), "rev-parse", "--is-inside-work-tree"],
-            capture_output=True,
-            text=True,
-        )
-        if r.returncode != 0:
-            raise SystemExit(
-                f"❌ 底座 {target} 不是 git 仓库（显式本地路径须为 git 检出）"
-            )
-        return
-    _ensure_base(source)  # 裸名：clone 即可，天然 git
 
 
 def declared_params(combo_name: str) -> set[str] | None:
@@ -164,28 +173,56 @@ def _frozen_params_path(source: str) -> Path | None:
 def param_schema(combo_name: str, combo: dict) -> dict[str, dict]:
     """组合参数 schema：各 unit params.json 并集（§2.3）。
 
-    暴露全部 derived:false 原生参数（含派生输入如 child_apps_raw）；
-    仅 derived:true 纯派生值不暴露。跨 unit 同名合并（保留首现 spec）。
-    返回：{param_name: {type, choices, default, derived, unit_key}}（unit_key=None=共享）
+    暴露全部 derived:false 原生参数（含派生输入如 child_apps_raw）；仅 derived:true
+    纯派生值不暴露。跨 unit 同名参数（共享）去重，spec 取 **provider 端**（S2）：
+    provider 为契约属主，default/choices 以其为准；consumer 端同名不覆盖。
+    对共享参数的 default / enabled choices 跨端不一致 → 告警（提示底座默认漂移）。
 
     读参分流（§1.4）：frozen 读烘焙 _MEIPASS/bases_params；源码读缓存 clone（钉 version）。
     """
-    schema: dict[str, dict] = {}
+    # 先按 unit key 收齐各自 params（仅原生参数）
+    per_unit: dict[str, dict[str, dict]] = {}
     for key, unit in iter_units(combo):
         baked = _frozen_params_path(unit["source"]) if _FROZEN else None
-        if baked is not None:
-            p = baked
-        else:
-            base_dir = _ensure_base(unit["source"], unit.get("version"))
-            p = base_dir / "params.json"
+        p = (
+            baked
+            if baked is not None
+            else _ensure_base(unit["source"], unit.get("version")) / "params.json"
+        )
         if not p.exists():
             print(f"⚠️ 缺底座 {unit['source']} params.json（{p}）——跳过其参数")
             continue
         params = json.loads(p.read_text(encoding="utf-8")).get("params", {})
+        per_unit[key] = {n: s for n, s in params.items() if not s.get("derived")}
+
+    providers = {p for _, p in edge_pairs(combo)}  # 所有 edge 的 provider key（S2）
+
+    def _default_and_choices(spec: dict):
+        return (
+            spec.get("default"),
+            [c["value"] for c in spec.get("choices", []) if not c.get("disabled")],
+        )
+
+    # 身份参数：各端可有独立默认（project_name/project_title），非契约决策——不做共享一致校验
+    _identity_params = {"project_name", "project_title"}
+
+    schema: dict[str, dict] = {}
+    for key, params in per_unit.items():
         for name, spec in params.items():
-            if spec.get("derived"):
-                continue  # 纯派生值不暴露（derived:true，如 child_apps）
             if name in schema:
-                continue  # 跨 unit 同名 → 共享，保留首现（合并/广播语义）
+                if name in _identity_params:
+                    continue  # 各端身份自持，不 provider 覆盖也不告警
+                # 共享契约参数：校验跨端 default/enabled choices 一致；不一致告警（不静默取一）
+                old_spec = schema[name]
+                if _default_and_choices(old_spec) != _default_and_choices(spec):
+                    old_unit = old_spec.get("unit_key")
+                    print(
+                        f"⚠️ 共享参数 {name} 在 {old_unit} 与 {key} 的默认值/启用取值"
+                        f"不一致（{_default_and_choices(old_spec)} vs "
+                        f"{_default_and_choices(spec)}）——取 provider 端"
+                    )
+                if key in providers and old_spec.get("unit_key") not in providers:
+                    schema[name] = {**spec, "unit_key": key}  # provider 端覆盖 consumer
+                continue
             schema[name] = {**spec, "unit_key": key}
     return schema
