@@ -4,7 +4,7 @@
 > **本轮范围（已定案，2026-09-03 扩定）**：
 > ① 代码支持多 units 模式（N≥2、含多 edge）；
 > ② CLI 全量迁 **Click**——integrate + check 统一多命令入口，删 `-D`/精选别名，选项 schema 由**底座 params.json** 数据驱动；
-> ③ **砍本地模式**——底座一律 clone/baked（钉 combos.yaml version），源码/可执行同路径；
+> ③ **砍本地模式**——底座一律 clone/baked（钉 combos.yaml version）；源码走缓存 clone，可执行另烘焙 params.json（§1.4）；
 > ④ 文档同步：桥仓根 README.md + docs/base-onboarding.md。
 > **不在本轮**：新底座接入、契约多 edge 目录、`templates/project-README/` 通用化、bridge-mcp-server 一切（见 §4）。
 > **回归护栏**：python-react 组合 e2e 全程保持绿（生成结构不变）；schema 从钉 version 的 params.json 读。
@@ -18,14 +18,14 @@
 2. **数据模型 units/edges**——combos.yaml 迁移 + 访问器（python-react 单 edge 回归）；
 3. **CLI 全量 Click 重构**——统一入口（integrate + check 子命令），per-combo 子命令选项 = params.json 数据驱动，删 `-D`/别名；
 4. **check.py 逻辑沿 units/edges**；
-5. 文档（README / onboarding）。
+5. **可执行 params.json 烘焙**——frozen 模式 schema/help 零网络（见 §1.4）；
+6. 文档（README / onboarding）。
 
 **不做**：
 - 不接入任何新底座（nuxt-fullstack / bff-gateway / cli）；
 - 不改契约多 edge 目录（`docs/contracts/`）——python-react 单 edge 维持 `docs/CONTRACT.md`；
 - 不改 bridge-mcp-server 任何文件；
-- 不改 `templates/project-README/`；
-- 可执行文件（PyInstaller）本轮照旧，params.json 烘焙进包属打包 CI 后续（§4）。
+- 不改 `templates/project-README/`。
 
 ---
 
@@ -62,6 +62,16 @@ def ensure_git_repo(source):                    # 不变量：底座必 git（cl
 - 底座开发循环：改底座 → commit+push → bump combos.yaml version → 桥 clone 验证（原本地即时反馈消失，已接受）；
 - 首次生成/测试需拉底座（网络），之后 `~/.cache/fullstack-bridge/bases` 复用；
 - 测试不再依赖兄弟目录存在。
+
+#### 1.4 可执行 params.json 烘焙（frozen 模式 schema 零网络）
+
+**边界（防误设计）**：烘焙 ≠ 免除生成时的 clone。底座 `template/`（copier copy 用）与 check 的版本对比（`git show <sha>:params.json`）仍需 clone；烘焙只消除 **schema/选项注册/`--help`** 对底座的网络依赖——frozen 下 `param_schema` 读烘焙快照，不必为出 help 先拉 git。
+
+- params.json 位于底座**仓库根**（非 `template/` 内）——打包时需从「钉 version 的缓存 clone」或该 version 的仓库中取；
+- **integrate.spec datas 增补**：为每个 combos.yaml units 引用的底座 source，取其 params.json → 打进包内（如 `bases_params/<source>.json`）；打哪个 version = 打包时刻 combos.yaml 钉的 version（随包冻结）；
+- 打包前提 = 本地已 clone 该底座到 `_BASE_CACHE`（`uv run pyinstaller` 前先 `clone-bases.py --all`，CI 亦然）；
+- `bridge/combos.py`：`param_schema` 读参分流——frozen 读 `sys._MEIPASS/bases_params/<source>.json`；源码读缓存 clone 的 params.json；
+- 选型：本轮源码模式仍走缓存 clone 读 params.json（首拉一次），frozen 走烘焙；两者读的都是同一「钉 version」内容。
 
 ---
 
@@ -164,7 +174,6 @@ for combo in load_combos():
 - **契约多 edge 目录**（`docs/contracts/`）：需新组合（ui-bff-api）落地后才有意义；
 - **新底座接入**（nuxt-fullstack / bff-gateway / cli）：三件套 + combos.yaml units/edges 注册 + 契约模板；
 - **`templates/project-README/` 通用化**：目录表 units key 注入；
-- **可执行 params.json 烘焙**：PyInstaller --add-data 钉 version 快照（本轮源码 clone 跑通，打包 CI 后续）；
 - **bridge-mcp-server 文档同步 + 实现**：桥成最终态后再据重构结果改 DESIGN.md / 起 FastMCP（不实现代码）。
 
 ---
@@ -177,6 +186,7 @@ for combo in load_combos():
 | tests/test_combos.py | iter_units / edge_pairs / merge_order / param_schema；去兄弟目录断言（改缓存 resolve） |
 | tests/test_answers.py | merge 序 python-react 语义 + 多 edge 构造单测 |
 | tests/test_params.py / test_coverage.py | 读缓存 params.json；接口随行 |
+| tests/test_combos.py（烘焙） | param_schema 分流：mock frozen 读烘焙快照 / 源码读缓存 clone，输出一致 |
 | tests/e2e/test_e2e_for_python_react.py | 断言结构不变（frontend/ backend/ docs/CONTRACT.md）；首次需拉底座 |
 | tests/utils/runner.py | 适配 Click 命令调用 |
 
@@ -189,6 +199,8 @@ uv run pytest                    # 单测 + e2e 全绿（首次拉底座）
 uv run bridge check --combo python-react   # 全部对齐
 # 手工：uv run bridge generate python-react <tmp> --auth-mode opaque --with-child-app true
 #       → frontend/ backend/ docs/CONTRACT.md README.md 结构不变；generate --help 列出 schema 选项
+# 打包：uv run python .github/scripts/clone-bases.py --all && uv run pyinstaller integrate.spec
+#       → 可执行在无网络/无缓存机器上 --help 仍列出 schema（读烘焙 params.json）
 ```
 
 ---
