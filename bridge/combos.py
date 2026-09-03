@@ -9,7 +9,6 @@ import yaml
 from . import BRIDGE
 
 COMBO_FILE = BRIDGE / "combos.yaml"
-ORG = "jianghua-developer"
 _FROZEN = getattr(sys, "frozen", False)
 # 可执行文件（frozen）模式下，裸名底座的克隆缓存（按 combos.yaml version checkout）
 _BASE_CACHE = Path.home() / ".cache" / "fullstack-bridge" / "bases"
@@ -23,17 +22,24 @@ def is_url(source: str) -> bool:
     return "://" in source or source.startswith("git@")
 
 
+def _load_bases() -> dict:
+    """combos.yaml 的 bases 注册表（底座名 → git 地址）。"""
+    return yaml.safe_load(COMBO_FILE.read_text(encoding="utf-8")).get("bases", {})
+
+
 def _frozen_base(source: str, version: str | None = None) -> str:
     """可执行文件（frozen）模式：克隆裸名底座到缓存，checkout 对齐版本，返回 template/。
 
     copier 不能直接消费底座 git URL（copier.yml 在仓库 template/ 子目录）——
-    需自行克隆后指向 template/。依赖：git 在 PATH + 网络。
+    需自行克隆后指向 template/。git 地址从 combos.yaml bases 注册表取。依赖：git + 网络。
     """
+    url = _load_bases().get(source)
+    if not url:
+        raise SystemExit(f"❌ combos.yaml bases 未配置「{source}」的 git 地址（可执行文件克隆底座用）")
     dest = _BASE_CACHE / source
     if not (dest / "template" / "copier.yml").exists():
         dest.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run(["git", "clone", f"https://github.com/{ORG}/{source}.git", str(dest)],
-                       check=True)
+        subprocess.run(["git", "clone", url, str(dest)], check=True)
     if version:
         cur = subprocess.run(["git", "-C", str(dest), "rev-parse", "HEAD"],
                              capture_output=True, text=True).stdout.strip()

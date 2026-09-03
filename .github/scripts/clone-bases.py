@@ -15,7 +15,6 @@ from pathlib import Path
 import yaml
 
 BRIDGE = Path(__file__).resolve().parent.parent.parent  # .github/scripts/ → 桥根
-ORG = "jianghua-developer"
 
 
 def main() -> int:
@@ -24,7 +23,9 @@ def main() -> int:
     ap.add_argument("--for-base", help="只克隆涉及该底座的组合")
     args = ap.parse_args()
 
-    combos = yaml.safe_load((BRIDGE / "combos.yaml").read_text(encoding="utf-8"))["combos"]
+    data = yaml.safe_load((BRIDGE / "combos.yaml").read_text(encoding="utf-8"))
+    combos = data["combos"]
+    bases = data.get("bases", {})  # 底座 git 地址注册表
     sources = {c[end]["source"] for c in combos.values() for end in ("frontend", "backend")}
     if args.for_base:
         # 受影响组合（用了该底座的）涉及的**全部**底座——check 的子集对齐要读两端 params
@@ -41,7 +42,9 @@ def main() -> int:
         if dest.is_dir():
             print(f"✓ 底座已存在: {src}")
             continue
-        url = f"https://github.com/{ORG}/{src}.git"
+        url = bases.get(src)
+        if not url:
+            raise SystemExit(f"❌ combos.yaml bases 未配置「{src}」的 git 地址")
         print(f"↻ 克隆 {url} → {dest}")
         # 普通全量克隆（底座仓小）：`--filter=blob:none` 是部分克隆非浅克隆，
         # 对之 `fetch --unshallow` 会报 128；且全量克隆让 check 的 `git show` 不依赖懒加载

@@ -78,10 +78,16 @@ jobs:
 
 打开 `fullstack-bridge/combos.yaml`：
 
+- **注册底座 git 地址**：`bases:` 注册表加 `<底座名>: <git 地址>`（可执行文件克隆底座 / CI clone-bases 用）
 - **并入现有组合**（如新后端配 react）：改对应 combo 的 frontend/backend `source` + `version`
 - **全新组合**：加一个 combo 条目：
 
 ```yaml
+# 底座 git 地址注册表（新底座先在此注册）
+bases:
+  vite-react-spa-template:   https://github.com/jianghua-developer/vite-react-spa-template.git
+  python-fastapi-template:   https://github.com/jianghua-developer/python-fastapi-template.git
+
 combos:
   python-react:            # 例：加 python-vue 时复制并改名
     frontend:
