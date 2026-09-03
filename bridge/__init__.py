@@ -7,7 +7,12 @@
 - check/       检查链专用：底座 params.json 读取对比（检查 1）、契约覆盖扫描（检查 2）
 """
 
+import sys
 from pathlib import Path
 
-# fullstack-bridge 仓库根（bridge/ 的上一级）
-BRIDGE = Path(__file__).resolve().parent.parent
+if getattr(sys, "frozen", False):
+    # PyInstaller onefile：数据（combos.yaml / combos / templates）打进解压目录
+    BRIDGE = Path(sys._MEIPASS)
+else:
+    # 源码运行：fullstack-bridge 仓库根（bridge/ 的上一级）
+    BRIDGE = Path(__file__).resolve().parent.parent

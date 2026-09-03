@@ -5,6 +5,8 @@ description = "前后端连通层：把单端模板与组合契约整合为前�
 requires-python = ">=3.11"
 dependencies = [
     "pyyaml>=6.0",
+    # copier 走 API（run_copy）——生成核心依赖，打包进单文件的前提
+    "copier>=9.17,<10",
 ]
 
 # 非发布型工具项目：uv sync 只装依赖，不构建/安装本项目
@@ -15,6 +17,7 @@ package = false
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "pyinstaller>=6.0",  # 打包单文件可执行：uv run pyinstaller integrate.spec
 ]
 
 [tool.pytest.ini_options]

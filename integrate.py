@@ -55,9 +55,12 @@ def validate_cli(p: argparse.ArgumentParser, args) -> None:
 
 
 def _combo_config(combo: dict, combo_name: str) -> tuple[str, str, Path, dict]:
-    """组合定义 → (前端模板, 后端模板, 契约模板目录, stack 元数据)。"""
-    front_src = resolve_template(combo["frontend"]["source"])
-    back_src = resolve_template(combo["backend"]["source"])
+    """组合定义 → (前端模板, 后端模板, 契约模板目录, stack 元数据)。
+
+    version 传给 resolve_template：frozen（可执行文件）时克隆底座到该对齐版本。
+    """
+    front_src = resolve_template(combo["frontend"]["source"], combo["frontend"]["version"])
+    back_src = resolve_template(combo["backend"]["source"], combo["backend"]["version"])
     contract_dir = BRIDGE / "combos" / combo.get("contract", combo_name)
     return front_src, back_src, contract_dir, combo.get("stack", {})
 
