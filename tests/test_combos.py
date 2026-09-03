@@ -72,23 +72,79 @@ def test_resolve_base_returns_repo_root():
     assert (b / "params.json").exists()
 
 
+# 构造合法组合（source 用真实注册底座名，避开 R5 source 校验）
+_SRC_FE = "vite-react-spa-template"
+_SRC_BE = "python-fastapi-template"
+
+
+def _two_unit(edges):
+    return {
+        "units": {"frontend": {"source": _SRC_FE}, "backend": {"source": _SRC_BE}},
+        "edges": edges,
+    }
+
+
 def test_validate_combo_ok():
     validate_combo("python-react", load_combos()["python-react"])  # 不抛
 
 
 def test_validate_combo_rejects_single_unit():
     with pytest.raises(SystemExit):
-        validate_combo("solo", {"units": {"only": {}}, "edges": [["only", "only"]]})
+        validate_combo("solo", {"units": {"only": {"source": _SRC_FE}}})
 
 
 def test_validate_combo_rejects_missing_edges():
     with pytest.raises(SystemExit):
-        validate_combo("no-edge", {"units": {"a": {}, "b": {}}})
+        validate_combo(
+            "no-edge", {"units": {"a": {"source": _SRC_FE}, "b": {"source": _SRC_BE}}}
+        )
 
 
 def test_validate_combo_rejects_bad_edge_key():
     with pytest.raises(SystemExit):
-        validate_combo("bad", {"units": {"a": {}, "b": {}}, "edges": [["a", "zzz"]]})
+        validate_combo("bad", _two_unit([["frontend", "zzz"]]))
+
+
+def test_validate_combo_rejects_unregistered_source():
+    with pytest.raises(SystemExit):
+        validate_combo(
+            "bad-src",
+            {
+                "units": {"a": {"source": "not-a-real-base"}, "b": {"source": _SRC_BE}},
+                "edges": [["a", "b"]],
+            },
+        )
+
+
+def test_validate_combo_rejects_non_chain_edges():
+    """edges 数 ≠ units-1（如 3 单元 2 边中 1 边缺失/多出）→ 拒绝。"""
+    with pytest.raises(SystemExit):
+        validate_combo(
+            "bad-chain",
+            {
+                "units": {
+                    "a": {"source": _SRC_FE},
+                    "b": {"source": _SRC_BE},
+                    "c": {"source": _SRC_FE},
+                },
+                "edges": [["a", "b"]],
+            },
+        )  # 3 单元应 2 边
+
+
+def test_validate_combo_ok_chain_three_units():
+    """3 单元 2 边链合法（ui-bff-api 形态）。"""
+    validate_combo(
+        "chain3",
+        {
+            "units": {
+                "a": {"source": _SRC_FE},
+                "b": {"source": _SRC_BE},
+                "c": {"source": _SRC_FE},
+            },
+            "edges": [["a", "b"], ["b", "c"]],
+        },
+    )
 
 
 def test_validate_all_combos_registered():

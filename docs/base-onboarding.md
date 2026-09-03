@@ -105,7 +105,7 @@ combos:
 ```
 
 > 桥管**多单元组合**（N≥2，units+edges）；单模板形态（纯前端/纯后端/CLI）不在桥，走能力层 `generate_single`（后续）。
-> source 裸名一律 clone 到缓存（`~/.cache/fullstack-bridge/bases`），显式 git 地址/本地路径亦可（无契约治理）。
+> source 须为 bases 注册裸名；多端只认注册组合（Q4），单模板形态走能力层 `generate_single`。底座一律 clone 到缓存（`~/.cache/fullstack-bridge/bases`）。
 > 每个 unit 需给 `app`（职责描述）+ `stack`（技术栈）——README 目录/技术栈表按 units 循环渲染，不硬编码端名。
 
 ### 2.2 契约模板（全新组合时）

@@ -187,6 +187,18 @@ def _declared_or_warn(combo_name: str) -> set[str] | None:
     return declared_params(combo_name)
 
 
+def _fetch_bases_for(targets: dict) -> None:
+    """对目标组合涉及的全部底座 fetch origin（R2：刷新漂移「当前」参照）。"""
+    from bridge.combos import fetch_base
+
+    seen: set[str] = set()
+    for cdef in targets.values():
+        for _, unit in iter_units(cdef):
+            if unit["source"] not in seen:
+                seen.add(unit["source"])
+                fetch_base(unit["source"])
+
+
 def _check_drift(
     name: str, combo: dict, base_repo: str | None, base_version: str | None
 ) -> bool:
@@ -211,7 +223,14 @@ def _check_drift(
         cur_ref = base_version if (base_repo and src == base_repo) else "origin/HEAD"
         new, err = read_params(base_dir, cur_ref)
         if err:
-            # origin/HEAD 不存在（本地底座/未 fetch）→ 回退工作树
+            if cur_ref == base_version:
+                # 信号 ref（check-drift 派发载荷）读取失败 = 真实错误：显式报错，不回退（R2）
+                print(
+                    f"✗ [{name} {key}] 底座 {src} 信号版本 {base_version} 读取失败: {err}"
+                )
+                drift = True
+                continue
+            # origin/HEAD 不可得（本地底座无远端/离线未 fetch）→ 回退工作树并注明
             new, err2 = read_params(base_dir, None)
             if err2:
                 print(f"✗ [{name} {key}] {err}; {err2}")
@@ -318,6 +337,7 @@ def _build_check_command() -> click.Command:
         targets = _select_targets(combo, all_flag, base_repo, base_version)
         if not targets:
             return 0
+        _fetch_bases_for(targets)  # R2：联网刷新 origin/HEAD（失败仅提示沿用本地 ref）
         drift = False
         for name, cdef in targets.items():
             if check_combo(name, cdef, base_repo, base_version):

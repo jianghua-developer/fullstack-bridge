@@ -28,13 +28,27 @@ def load_combos() -> dict:
 
 
 def validate_combo(combo_name: str, combo: dict) -> None:
-    """形态约束（S3）：units≥2、edges 必填非空、边端点合法。桥只管 N≥2。"""
+    """形态约束：units≥2、edges 必填、端点合法、source 注册、链形（R5）。桥只管 N≥2。"""
     units = combo.get("units", {})
     if not isinstance(units, dict) or len(units) < 2:
         raise SystemExit(f"❌ 组合 {combo_name} units < 2——桥只管理多单元组合（N≥2）")
     if not combo.get("edges"):
         raise SystemExit(f"❌ 组合 {combo_name} 缺 edges（必填显式）")
     edge_pairs(combo)  # 端点合法性校验（缺 key 抛错）
+    # source 注册性：units.source 须在 bases 注册表（Q4 只认注册裸名）
+    bases = _load_bases()
+    for key, unit in combo["units"].items():
+        src = unit.get("source")
+        if src not in bases:
+            raise SystemExit(
+                f"❌ 组合 {combo_name} unit「{key}」source「{src}」未在 bases 注册表"
+            )
+    # 链形：edges 数应 = units-1（系列目前只支持链式契约；未来若支持星型/环型再放宽）
+    if len(combo["edges"]) != len(units) - 1:
+        raise SystemExit(
+            f"❌ 组合 {combo_name} edges 数 {len(combo['edges'])} ≠ units-1"
+            f"（{len(units) - 1}）——契约仅支持链形"
+        )
 
 
 def validate_all_combos() -> None:
@@ -134,6 +148,25 @@ def _checkout_or_fetch(dest: Path, version: str) -> None:
         raise SystemExit(
             f"❌ 底座 {dest.name} checkout {version} 失败（fetch 后仍不可得）: "
             f"{r.stderr.strip()}"
+        )
+
+
+def fetch_base(source: str) -> None:
+    """刷新底座缓存 clone 的远端 ref（origin/HEAD）（R2）。
+
+    check 用——让漂移「当前」参照反映上游最新；离线失败仅提示，不中断（沿用现有 ref）。
+    """
+    dest = BASE_CACHE / source
+    if not (dest / ".git").exists():
+        return  # 未 clone：drift 的 resolve_base 自会处理
+    r = subprocess.run(
+        ["git", "-C", str(dest), "fetch", "origin"],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode != 0:
+        print(
+            f"⚠️ 底座 {source} fetch origin 失败（{r.stderr.strip()[:80]}）——沿用本地 ref"
         )
 
 
