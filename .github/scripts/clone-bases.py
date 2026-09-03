@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """clone-bases.py — 统一底座获取：把 combos.yaml units 引用的底座克隆到缓存目录。
 
-设计（refactor-step-design §1.2）：底座一律 clone/baked，目标 = ~/.cache/fullstack-bridge/bases
+设计：底座一律 clone/baked，目标 = ~/.cache/fullstack-bridge/bases
 （与 bridge.combos.BASE_CACHE 一致），不再克隆到桥的兄弟路径。drift 检查需 `git show <sha>:params.json`，
 故全量拉取历史。可加 --collect-params <dir>：把各底座钉 version 的 params.json 拷出（spec 烘焙用）。
 
