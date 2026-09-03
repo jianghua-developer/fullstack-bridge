@@ -6,21 +6,21 @@
 
 - 底座是 **git 仓库**（桥的 `combos.yaml` version 基线依赖 git，非 git 拒绝）
 - 底座模板体在 `template/`（copier.yml 位于其内）
-- 已克隆协议仓 `fullstack-param-protocol`（含 `gen-params.py`）
-- 已有一个接好的底座可作参考复制源（本文以现有底座为 `SRC_BASE`）
+- 已克隆协议仓 `fullstack-param-protocol`（`gen-params.py` + `hooks/pre-commit` + `workflows/params-check.yml`——**接入三件套的单一真源**）
 
 ---
 
-## 1. 底座侧接入（三件套）
-
-### 1.1 vendored gen-params.py + 版本标记
+## 1. 底座侧接入（三件套，全部从协议仓复制）
 
 ```bash
-SRC_BASE=~/project/vite-react-spa-template   # 参考底座
 BASE=~/project/<新底座>
 PROTO=~/project/fullstack-param-protocol
-
 mkdir -p "$BASE/bin" "$BASE/.githooks" "$BASE/.github/workflows"
+```
+
+### 1.1 gen-params.py + 版本标记
+
+```bash
 cp "$PROTO/gen-params.py" "$BASE/bin/gen-params.py"
 sha256sum "$PROTO/gen-params.py" | awk '{print $1}' > "$BASE/bin/GEN_PARAMS_VERSION"
 ```
@@ -40,17 +40,17 @@ uv run --with copier python "$BASE/bin/gen-params.py" \
 ### 1.3 pre-commit 钩子（best-effort 生成）
 
 ```bash
-cp "$SRC_BASE/.githooks/pre-commit" "$BASE/.githooks/pre-commit"
+cp "$PROTO/hooks/pre-commit" "$BASE/.githooks/pre-commit"
 chmod +x "$BASE/.githooks/pre-commit"
 git -C "$BASE" config core.hooksPath .githooks
 ```
 
-钩子行为：提交时 best-effort 重生成 params.json，**不拦截**（硬门槛在 CI）。脚本内容可从现有底座 `.githooks/pre-commit` 复制（copier 环境解析器 + CWD 无关的仓库根推导）。
+钩子行为：提交时 best-effort 重生成 params.json，**不拦截**（硬门槛在 CI）。copier 环境解析器（uv → copier 工具 python）+ CWD 无关的仓库根推导。
 
 ### 1.4 CI workflow（params-check.yml）
 
 ```bash
-cp "$SRC_BASE/.github/workflows/params-check.yml" "$BASE/.github/workflows/params-check.yml"
+cp "$PROTO/workflows/params-check.yml" "$BASE/.github/workflows/params-check.yml"
 ```
 
 workflow 双职责（内容见现有底座）：
