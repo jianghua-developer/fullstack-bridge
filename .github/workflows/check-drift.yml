@@ -27,35 +27,47 @@ jobs:
         run: pip install pyyaml
       - name: 克隆受影响底座到兄弟路径
         run: python .github/scripts/clone-bases.py --for-base "${{ inputs.base_repo }}"
-      - name: 跑漂移检查（漂移不算 CI 失败，以报告为准）
+      - name: 跑漂移检查（漂移不算 CI 失败，以退出码为准）
         id: check
         continue-on-error: true
         run: |
           python check.py --base-repo "${{ inputs.base_repo }}" --base-version "${{ inputs.base_version }}" \
             | tee /tmp/check-report.txt
           echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-      - name: 开/更新 issue（标题按 base_repo 幂等）
+      # 仅可操作发现（check 退出码非 0：漂移/硬缺口）建 issue；对齐时关闭遗留 issue。
+      # 检查 2 的「经 else 兜底」是警告（ℹ️，不影响退出码），不建 issue——属信息提示，人运行 check 时审。
+      - name: 开/更新或关闭漂移 issue（按 base_repo 幂等）
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             const baseRepo = '${{ inputs.base_repo }}';
-            const baseVersion = '${{ inputs.base_version }}';
-            const title = `底座漂移：${baseRepo} 参数变化 (${baseVersion.slice(0, 7)})`;
-            const body = '```\n' + fs.readFileSync('/tmp/check-report.txt', 'utf8') +
-              '```\n\n处理：改 `combos/<combo>/` 契约模板（若需要）+ 手动 bump `combos.yaml` 的 version 后提 PR。';
+            const exit = Number('${{ steps.check.outputs.exit }}');
+            const report = fs.readFileSync('/tmp/check-report.txt', 'utf8');
+            const prefix = `底座漂移：${baseRepo}`;
             const { data: issues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner, repo: context.repo.repo,
               state: 'open', per_page: 100,
             });
-            const found = issues.find(i => i.title.includes(`底座漂移：${baseRepo}`));
-            if (found) {
+            const found = issues.find(i => i.title.includes(prefix));
+            if (exit !== 0) {
+              const title = `${prefix} 参数变化`;
+              const body = '```\n' + report +
+                '```\n\n处理：改 `combos/<combo>/` 契约模板（若需要）+ 手动 bump `combos.yaml` 的 version 后提 PR。';
+              if (found) {
+                await github.rest.issues.update({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: found.number, body,
+                });
+              } else {
+                await github.rest.issues.create({
+                  owner: context.repo.owner, repo: context.repo.repo, title, body,
+                });
+              }
+            } else if (found) {
+              // 已对齐 → 关闭遗留漂移 issue（漂移已解决）
               await github.rest.issues.update({
                 owner: context.repo.owner, repo: context.repo.repo,
-                issue_number: found.number, body,
-              });
-            } else {
-              await github.rest.issues.create({
-                owner: context.repo.owner, repo: context.repo.repo, title, body,
+                issue_number: found.number, state: 'closed',
               });
             }
