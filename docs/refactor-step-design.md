@@ -183,11 +183,19 @@ uv run check.py --combo python-react                      # 全部对齐
 
 ---
 
-## Phase D：能力层 + 可执行 + 新底座（跨仓/后续）
+## Phase D：可执行 + 新底座（本轮不做 MCP 实现、不改 bridge-mcp-server）
 
-- **bridge-mcp-server**：按 DESIGN §6 起 FastMCP 骨架；`generate_single(git_url)` clone→指 template/→copier；`get_template_params(git_url)` clone 内省；`generate_multi` shell-out 本仓 integrate（单模式，已无逃生舱）；`list_combos` 只列多端组合。
-- **可执行分发**：`dist/integrate` 保持（多端）；薄核心如需分发按同模式打包（PyInstaller + frozen 克隆缓存）。
-- **新底座接入**（nuxt-fullstack / bff-gateway / cli）：三件套 params.json 协议；契约 per-combo；combos.yaml 注册 units/edges。
+> **本轮范围**：fullstack-bridge 重构**不实现 bridge-mcp-server 的任何功能、不修改 bridge-mcp-server 的任何文件**（含 DESIGN.md——不起 FastMCP 骨架、不写 generate_single 等工具代码）。等本仓重构完成、测试通过、桥形态成为最终状态后，再据重构结果同步能力层文档。
+
+**bridge-mcp-server 的文档同步范围（记录于此，供重构完成后执行，不在本轮）**——届时 DESIGN.md 需消除旧桥措辞，使其描述的消费面 = 重构后桥（units/edges、单模式无逃生舱、逐跳契约目录）：
+- §5 多端执行去「模式 A」措辞（桥已单模式、只收注册 combo）；
+- §6.2 generate_multi 去「模式 A」；
+- §6.5 list_combos 返回去 `contract` 字段（契约目录 = combos/\<combo\> 固定）、约束过滤按技术栈而非 frontend/backend 端名；
+- §8 combos.yaml selection 示例 units 形态与重构后 schema 一致；
+- §12 参考去「模式 A」。
+
+**可执行分发**：`dist/integrate` 保持（多端）；薄核心分发待 bridge-mcp-server 真正立项时再议。
+**新底座接入**（nuxt-fullstack / bff-gateway / cli）：三件套 params.json 协议；契约 per-combo；combos.yaml 注册 units/edges。
 
 ---
 
