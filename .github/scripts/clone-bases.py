@@ -43,11 +43,9 @@ def main() -> int:
             continue
         url = f"https://github.com/{ORG}/{src}.git"
         print(f"↻ 克隆 {url} → {dest}")
-        subprocess.run(["git", "clone", "--filter=blob:none", url, str(dest)], check=True)
-        subprocess.run(
-            ["git", "-C", str(dest), "fetch", "--unshallow", "origin"],
-            check=True, capture_output=True,
-        )
+        # 普通全量克隆（底座仓小）：`--filter=blob:none` 是部分克隆非浅克隆，
+        # 对之 `fetch --unshallow` 会报 128；且全量克隆让 check 的 `git show` 不依赖懒加载
+        subprocess.run(["git", "clone", url, str(dest)], check=True)
         print(f"✓ 已克隆: {src}")
     return 0
 
