@@ -66,7 +66,7 @@ combos:
       backend_stack:   "FastAPI + SQLAlchemy（async）+ pydantic-settings"
 ```
 
-加新组合 = 这里加一行 + 新建 `combos/<组合>/` 契约模板目录，`integrate.py`/`check.py` 零改动。
+加新组合 = 这里加一行 + 新建 `combos/<组合>/` 契约模板目录，`integrate.py`/`check.py` 零改动。**新底座/新组合接入的完整操作手册（含 GitHub 配置步骤）见 [docs/base-onboarding.md](docs/base-onboarding.md)。**
 
 ## 契约模板约定
 
