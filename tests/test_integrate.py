@@ -1,67 +1,69 @@
-"""integrate.py 单元测试：CLI 校验与参数收集。"""
+"""cli.py 单元测试：Click group 结构 + generate schema 选项（惰性构建）。"""
 
-import pytest
+import click
+from click.testing import CliRunner
 
-from integrate import collect_user_params, validate_cli
-
-# 精选别名对应的属性名
-_CURATED = ["description", "api_base_url", "auth_mode", "with_db",
-            "with_redis", "with_child_app", "child_apps", "api_prefix"]
+from cli import _build_generate_group, build_bridge_group
+from bridge.combos import load_combos
 
 
-class Args:
-    """模拟 parsed args（精简别名默认 None）。"""
-
-    def __init__(self, **kw):
-        for k in _CURATED:
-            setattr(self, k, None)
-        self.combo = None
-        self.project = None
-        self.frontend = None
-        self.backend = None
-        self.extra = []
-        for k, v in kw.items():
-            setattr(self, k, v)
+def _get_combo_cmd(group, name):
+    """惰性组：经 get_command 触发构建（需 ctx）。"""
+    return group.get_command(click.Context(group), name)
 
 
-class Parser:
-    """模拟 argparse parser：error 抛 SystemExit（argparse 行为）。"""
-
-    def error(self, msg):
-        raise SystemExit(msg)
-
-
-def test_validate_cli_mutex():
-    with pytest.raises(SystemExit):
-        validate_cli(Parser(), Args(combo="python-react", project="proj",
-                                    frontend="x", backend="y"))
+def test_bridge_group_has_generate_and_check():
+    group = build_bridge_group()
+    names = set(group.commands)
+    assert {"generate", "check"} <= names
 
 
-def test_validate_cli_pairing_missing_backend():
-    with pytest.raises(SystemExit):
-        validate_cli(Parser(), Args(combo=None, project="proj", frontend="x"))
+def test_generate_group_lists_all_combos():
+    """list_commands（不触网）列出全部注册组合。"""
+    group = _build_generate_group()
+    assert set(group.list_commands(click.Context(group))) == set(load_combos())
 
 
-def test_validate_cli_pairing_missing_both():
-    with pytest.raises(SystemExit):
-        validate_cli(Parser(), Args(combo=None, project="proj"))
+def test_generate_combo_option_schema():
+    """python-react 子命令选项 = 底座 params.json schema（数据驱动，惰性构建）。"""
+    group = _build_generate_group()
+    cmd = _get_combo_cmd(group, "python-react")
+    assert cmd is not None
+    opt_names = {p.name for p in cmd.params}
+    assert "project" in opt_names  # 位置参数
+    assert "auth_mode" in opt_names  # 原生参数（共享）暴露
+    assert "child_apps_raw" in opt_names  # 派生参数输入（原生）暴露
+    assert "child_apps" not in opt_names  # 纯派生值不暴露
+    assert "project_name" not in opt_names  # 内部派生不暴露
+    assert "skip_tasks" in opt_names
 
 
-def test_validate_cli_ok_abbrev():
-    validate_cli(Parser(), Args(combo="python-react", project="proj"))  # 不抛
+def test_generate_broken_combo_degrades(monkeypatch):
+    """坏 combo（schema 构建失败）→ get_command 返回 None 且不抛（B2 降级）。"""
+    import cli as cli_mod
+
+    def _boom(*a, **k):
+        raise SystemExit("❌ 模拟 schema 失败")
+
+    monkeypatch.setattr(cli_mod, "param_schema", _boom)
+    group = _build_generate_group()
+    assert group.get_command(click.Context(group), "python-react") is None
+    assert "python-react" not in group.commands  # 未建成，不拖死
 
 
-def test_validate_cli_ok_explicit():
-    validate_cli(Parser(), Args(combo=None, project="proj", frontend="x", backend="y"))
+def test_generate_help_smoke():
+    """--help 不报错且不触发 schema（零触网）。"""
+    runner = CliRunner()
+    group = build_bridge_group()
+    res = runner.invoke(group, ["generate", "--help"])
+    assert res.exit_code == 0
+    assert "python-react" in res.output
 
 
-def test_collect_user_params_curated_and_extra():
-    args = Args(combo="python-react", project="proj", auth_mode="opaque",
-                extra=["with_taskqueue=none"])
-    params = collect_user_params(Parser(), args)
-    assert params == {"auth_mode": "opaque", "with_taskqueue": "none"}
-
-
-def test_collect_user_params_empty():
-    params = collect_user_params(Parser(), Args(combo="python-react", project="proj"))
-    assert params == {}
+def test_check_help_smoke():
+    """check --help 不触发 generate schema（B2：check 路径零触网）。"""
+    runner = CliRunner()
+    group = build_bridge_group()
+    res = runner.invoke(group, ["check", "--help"])
+    assert res.exit_code == 0
+    assert "combo" in res.output

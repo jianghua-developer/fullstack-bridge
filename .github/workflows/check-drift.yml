@@ -24,14 +24,14 @@ jobs:
         with:
           python-version: "3.12"
       - name: 装依赖
-        run: pip install pyyaml
-      - name: 克隆受影响底座到兄弟路径
+        run: pip install pyyaml click
+      - name: 克隆受影响底座到缓存目录
         run: python .github/scripts/clone-bases.py --for-base "${{ inputs.base_repo }}"
       - name: 跑漂移检查（漂移不算 CI 失败，以退出码为准）
         id: check
         continue-on-error: true
         run: |
-          python check.py --base-repo "${{ inputs.base_repo }}" --base-version "${{ inputs.base_version }}" \
+          python cli.py check --base-repo "${{ inputs.base_repo }}" --base-version "${{ inputs.base_version }}" \
             | tee /tmp/check-report.txt
           echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
       # 仅可操作发现（check 退出码非 0：漂移/硬缺口）建 issue；对齐时关闭遗留 issue。

@@ -10,7 +10,8 @@ def read_params(base_dir: Path, ref: str | None) -> tuple[dict | None, str | Non
     if ref:
         out = subprocess.run(
             ["git", "-C", str(base_dir), "show", f"{ref}:params.json"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if out.returncode != 0:
             return None, f"git show {ref}:params.json 失败: {out.stderr.strip()}"
@@ -37,7 +38,11 @@ def diff_params(old: dict, new: dict) -> list[str]:
         else:
             a, b = op[name], np[name]
             if enabled_choices(a) != enabled_choices(b):
-                msgs.append(f"{name} 启用取值变化: {enabled_choices(a)} → {enabled_choices(b)}")
+                msgs.append(
+                    f"{name} 启用取值变化: {enabled_choices(a)} → {enabled_choices(b)}"
+                )
             if not a.get("derived") and a.get("default") != b.get("default"):
-                msgs.append(f"{name} 默认值变化: {a.get('default')!r} → {b.get('default')!r}")
+                msgs.append(
+                    f"{name} 默认值变化: {a.get('default')!r} → {b.get('default')!r}"
+                )
     return msgs

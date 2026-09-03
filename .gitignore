@@ -2,3 +2,5 @@
 __pycache__/
 build/
 dist/
+# 打包前由 clone-bases --collect-params 生成的烘焙中间产物（spec 用）
+bases_params/

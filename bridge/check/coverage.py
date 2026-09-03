@@ -22,7 +22,7 @@ def has_else_for(text: str, pname: str) -> bool:
         stmt, rest = m.group(1), m.group(2)
         if stmt in ("if", "elif") and re.search(rf"\b{re.escape(pname)}\b", rest):
             depth = 0
-            for m2 in tags[i + 1:]:
+            for m2 in tags[i + 1 :]:
                 s2 = m2.group(1)
                 if s2 == "if":
                     depth += 1
@@ -35,7 +35,9 @@ def has_else_for(text: str, pname: str) -> bool:
     return False
 
 
-def coverage_report(combo_name: str, params: dict, declared: set[str] | None = None) -> tuple[list[str], list[str]]:
+def coverage_report(
+    combo_name: str, params: dict, declared: set[str] | None = None
+) -> tuple[list[str], list[str]]:
     """检查 2：底座 enabled choices vs 契约显式覆盖（启发式扫描）。
 
     hard     = 启用取值未显式覆盖且无 else 兜底（渲染为空，真缺口）→ 未对齐
@@ -58,14 +60,21 @@ def coverage_report(combo_name: str, params: dict, declared: set[str] | None = N
         if not has_condition_for(text, pname):
             hard.append(f"「{pname}」契约未条件引用（启用取值 {choices} 均未处理）")
             continue
-        explicit = set(re.findall(
-            rf"(?:if|elif)\s+{re.escape(pname)}\s*==\s*['\"]([^'\"]+)['\"]", text))
+        explicit = set(
+            re.findall(
+                rf"(?:if|elif)\s+{re.escape(pname)}\s*==\s*['\"]([^'\"]+)['\"]", text
+            )
+        )
         has_else = has_else_for(text, pname)
         for v in choices:
             if v in explicit:
                 continue
             if has_else:
-                advisory.append(f"「{pname}」启用取值「{v}」未显式覆盖（经 else 兜底，请确认语义）")
+                advisory.append(
+                    f"「{pname}」启用取值「{v}」未显式覆盖（经 else 兜底，请确认语义）"
+                )
             else:
-                hard.append(f"「{pname}」启用取值「{v}」契约未覆盖（无 else 兜底，渲染为空）")
+                hard.append(
+                    f"「{pname}」启用取值「{v}」契约未覆盖（无 else 兜底，渲染为空）"
+                )
     return hard, advisory
