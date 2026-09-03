@@ -18,8 +18,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: 装依赖
-        run: pip install pyyaml
-      - name: 克隆全部组合的底座到兄弟路径
+        run: pip install pyyaml click
+      - name: 克隆全部组合的底座到缓存目录
         run: python .github/scripts/clone-bases.py --all
       - name: 跑对齐检查（未对齐 → 阻止合并）
-        run: python check.py --all
+        run: python cli.py check --all

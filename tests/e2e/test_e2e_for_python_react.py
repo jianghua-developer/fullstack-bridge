@@ -1,15 +1,16 @@
-"""python-react 组合 e2e：integrate.py 生成并校验产物（--skip-tasks 避免装依赖）。
+"""python-react 组合 e2e：cli.py generate 生成并校验产物（--skip-tasks 避免装依赖）。
 
-新增组合（如 python-vue）→ 新建 test_e2e_for_<组合>.py，复用 tests/utils/runner.run_integrate。
+新增组合（如 python-vue）→ 新建 test_e2e_for_<组合>.py，复用 tests/utils/runner.run_generate。
 """
 
-from utils.runner import run_integrate
+from utils.runner import run_generate
 
 
 def test_e2e_opaque_full_for_python_react(tmp_path):
     proj = tmp_path / "test-app"
-    run_integrate(proj, "--auth-mode", "opaque", "--with-child-app", "true",
-                  "--child-apps", "backend,admin:adm")
+    run_generate(proj, "python-react",
+                 "--auth-mode", "opaque", "--with-child-app", "true",
+                 "--child-apps-raw", "backend,admin:adm")
 
     assert (proj / "frontend").is_dir()
     assert (proj / "backend").is_dir()
@@ -27,7 +28,8 @@ def test_e2e_opaque_full_for_python_react(tmp_path):
 
 def test_e2e_none_trim_for_python_react(tmp_path):
     proj = tmp_path / "test-app2"
-    run_integrate(proj, "--auth-mode", "none", "--with-db", "false", "--with-child-app", "false")
+    run_generate(proj, "python-react",
+                 "--auth-mode", "none", "--with-db", "false", "--with-child-app", "false")
 
     contract = (proj / "docs" / "CONTRACT.md").read_text(encoding="utf-8")
     assert "### 2.4" not in contract         # 认证章节裁剪

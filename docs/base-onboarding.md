@@ -83,26 +83,26 @@ jobs:
 - **全新组合**：加一个 combo 条目：
 
 ```yaml
-# 底座 git 地址注册表（新底座先在此注册）
+# 底座 git 地址注册表（新底座先在此注册；底座一律 clone 到缓存）
 bases:
   vite-react-spa-template:   https://github.com/jianghua-developer/vite-react-spa-template.git
   python-fastapi-template:   https://github.com/jianghua-developer/python-fastapi-template.git
 
 combos:
   python-react:            # 例：加 python-vue 时复制并改名
-    frontend:
-      source:  <底座名>          # 系列底座名 → ../<底座名>/template（须 git 仓）；或 git 地址
-      version: <刚推送的 commit>  # 对齐基线（手动维护）
-    backend:
-      source:  <底座名>
-      version: <刚推送的 commit>
-    contract: <组合名>
+    units:                          # key = 生成目录名；每项 {source, version}
+      frontend: { source: <底座名>, version: <刚推送的 commit> }
+      backend:  { source: <底座名>, version: <刚推送的 commit> }
+    edges: [[frontend, backend]]    # 有序对 [consumer, provider]，provider 契约属主
     stack:                        # 技术栈元数据（README 渲染用）
       frontend_app:    "..."
       backend_app:     "..."
       frontend_stack:  "..."
       backend_stack:   "..."
 ```
+
+> 桥管**多单元组合**（N≥2，units+edges）；单模板形态（纯前端/纯后端/CLI）不在桥，走能力层 `generate_single`（后续）。
+> source 裸名一律 clone 到缓存（`~/.cache/fullstack-bridge/bases`），显式 git 地址/本地路径亦可（无契约治理）。
 
 ### 2.2 契约模板（全新组合时）
 
@@ -114,8 +114,8 @@ combos:
 
 ```bash
 cd ~/project/fullstack-bridge
-uv run check.py --combo <组合>     # 应全部对齐
-uv run check.py --all
+uv run cli.py check --combo <组合>   # 应全部对齐
+uv run cli.py check --all
 ```
 
 ---
@@ -162,12 +162,12 @@ uv run check.py --all
 
 1. **桥侧**：手动触发 `fullstack-bridge` → Actions → check-drift → Run workflow（填 `base_repo` / `base_version`）→ 应产出报告
 2. **真实链路**：改新底座 copier.yml → push main → params-check 的 verify 过 → notify-drift dispatch → 桥 check-drift 开 issue
-3. `uv run check.py --all` 应全部对齐
+3. `uv run cli.py check --all` 应全部对齐
 
 ## 触发链路回顾
 
 ```
 底座 params.json 变化 → base CI verify(自检, 阻止) → notify-drift(Variable=true)
-  → dispatch 桥 check-drift(Secret 作 token) → check.py 对比 combos.yaml 基线
+  → dispatch 桥 check-drift(Secret 作 token) → cli.py check 对比 combos.yaml 基线
   → 未对齐开 issue → 人/AI 改 combos/<组合>/ + 手动 bump combos.yaml version → 桥 CI 门槛 → 对齐
 ```
