@@ -90,19 +90,23 @@ bases:
 
 combos:
   python-react:            # 例：加 python-vue 时复制并改名
-    units:                          # key = 生成目录名；每项 {source, version}
-      frontend: { source: <底座名>, version: <刚推送的 commit> }
-      backend:  { source: <底座名>, version: <刚推送的 commit> }
+    units:                          # key = 生成目录名；每项 {source, version, app, stack}
+      frontend:
+        source: <底座名>             # 系列底座名 → bases 注册表 git URL（clone 到缓存）
+        version: <刚推送的 commit>    # 对齐基线（手动维护）
+        app:   "前端应用"            # README 职责描述（目录表用）
+        stack: "..."                # 技术栈（README 渲染用）
+      backend:
+        source: <底座名>
+        version: <刚推送的 commit>
+        app:   "后端服务"
+        stack: "..."
     edges: [[frontend, backend]]    # 有序对 [consumer, provider]，provider 契约属主
-    stack:                        # 技术栈元数据（README 渲染用）
-      frontend_app:    "..."
-      backend_app:     "..."
-      frontend_stack:  "..."
-      backend_stack:   "..."
 ```
 
 > 桥管**多单元组合**（N≥2，units+edges）；单模板形态（纯前端/纯后端/CLI）不在桥，走能力层 `generate_single`（后续）。
 > source 裸名一律 clone 到缓存（`~/.cache/fullstack-bridge/bases`），显式 git 地址/本地路径亦可（无契约治理）。
+> 每个 unit 需给 `app`（职责描述）+ `stack`（技术栈）——README 目录/技术栈表按 units 循环渲染，不硬编码端名。
 
 ### 2.2 契约模板（全新组合时）
 

@@ -118,12 +118,15 @@ def _do_generate(
     run_copier(
         str(contract_dir), project_dir / "docs", merged, trust=False, skip_tasks=False
     )
-    # 项目 README 渲染（stack 元数据来自 combos.yaml）
-    stack = cdef.get("stack", {})
+    # 项目 README 渲染（units 展示元数据来自 combos.yaml units.{key}.{app,stack}）
+    units_desc = [
+        {"key": key, "app": unit.get("app", ""), "stack": unit.get("stack", "")}
+        for key, unit in iter_units(cdef)
+    ]
     run_copier(
         str(BRIDGE / "templates" / "project-README"),
         project_dir,
-        {**merged, **stack},
+        {**merged, "units_desc": units_desc},
         trust=False,
         skip_tasks=False,
     )

@@ -2,28 +2,27 @@
 
 {% if project_description %}{{ project_description }}
 
-{% endif %}业务系统前端与后端统一仓库。
+{% endif %}多单元业务系统统一仓库。各单元负责自身机制，接口契约由 `docs/CONTRACT.md` 统一对齐。
 
 ## 目录
 
 | 目录 | 职责 |
 |---|---|
-| `frontend/` | 前端应用（{{ frontend_app }}），详见 `frontend/docs/` 与契约 §3 |
-| `backend/` | 后端服务（{{ backend_app }}），详见 `backend/docs/` 与契约 §2 |
-| `docs/CONTRACT.md` | 前后端接口契约——**改动任何接口前先读它** |
+{% for u in units_desc %}| `{{ u.key }}/` | {{ u.app }}——详见 `{{ u.key }}/docs/` |
+{% endfor %}| `docs/CONTRACT.md` | 单元间接口契约——**改动任何接口前先读它** |
 
 ## 快速开始
 
-启动与连通验证见 `docs/CONTRACT.md` §4；前端开发见 `frontend/docs/`，后端机制见 `backend/docs/`。
+各单元启动与机制说明见其 `docs/` 子目录（如上目录表）；单元间连通验证见 `docs/CONTRACT.md`。
 
 ## 开发约定
 
-- 新增/修改接口：先更新 `docs/CONTRACT.md`，再分别实现前后端，保证两端对齐
+- 新增/修改接口：先更新 `docs/CONTRACT.md`，再分别实现涉及单元，保证对齐
 - 一切对接规则（命名、响应包络、错误码、认证）以 `docs/CONTRACT.md` 为准
 
 ## 技术栈
 
-| 端 | 技术栈 |
+| 单元 | 技术栈 |
 |---|---|
-| 前端 | {{ frontend_stack }} |
-| 后端 | {{ backend_stack }} |
+{% for u in units_desc %}| {{ u.app }} | {{ u.stack }} |
+{% endfor %}

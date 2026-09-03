@@ -12,12 +12,15 @@ bases:
 combos:
   python-react:
     units:
-      frontend: { source: vite-react-spa-template, version: 0034ec9 }
-      backend:  { source: python-fastapi-template, version: c73aa7b }
+      frontend:
+        source: vite-react-spa-template
+        version: 0034ec9
+        # README 元数据：app=职责描述，stack=技术栈（加新组合随 combos.yaml 提供）
+        app:   "前端应用"
+        stack: "Vite + React + TypeScript + TanStack Query + axios"
+      backend:
+        source: python-fastapi-template
+        version: c73aa7b
+        app:   "后端服务"
+        stack: "FastAPI + SQLAlchemy（async）+ pydantic-settings"
     edges: [[frontend, backend]]
-    # 技术栈元数据（README 渲染用；加新组合时随 combos.yaml 提供）
-    stack:
-      frontend_app:    "Vite + React + TypeScript"
-      backend_app:     "FastAPI"
-      frontend_stack:  "Vite + React + TypeScript + TanStack Query + axios"
-      backend_stack:   "FastAPI + SQLAlchemy（async）+ pydantic-settings"

@@ -51,14 +51,17 @@ uv run python cli.py check --combo python-react
 combos:
   python-react:
     units:                                  # key = 生成目录名（frontend/ backend/…）
-      frontend: { source: vite-react-spa-template, version: <git-ref> }
-      backend:  { source: python-fastapi-template, version: <git-ref> }
+      frontend:
+        source: vite-react-spa-template     # 底座名 → bases 注册表 git URL（clone 到缓存）
+        version: <git-ref>                  # 该组合已复核/对齐到的底座版本（check 基线）
+        app:   "前端应用"                    # README 职责描述（目录表用）
+        stack: "Vite + React + TypeScript + TanStack Query + axios"   # 技术栈（README 用）
+      backend:
+        source: python-fastapi-template
+        version: <git-ref>
+        app:   "后端服务"
+        stack: "FastAPI + SQLAlchemy（async）+ pydantic-settings"
     edges: [[frontend, backend]]            # 有序对 [consumer, provider]，provider 契约属主
-    stack:                                # 技术栈元数据（README 渲染用）
-      frontend_app:    "Vite + React + TypeScript"
-      backend_app:     "FastAPI"
-      frontend_stack:  "Vite + React + TypeScript + TanStack Query + axios"
-      backend_stack:   "FastAPI + SQLAlchemy（async）+ pydantic-settings"
 ```
 
 加新组合 = combos.yaml 加 `units`(≥2)+`edges` + 新建 `combos/<组合>/` 契约模板目录，`cli.py`/`bridge/` 零改动（CLI 选项由 params.json schema 自动生成）。**新底座/新组合接入的完整操作手册（含 GitHub 配置步骤）见 [docs/base-onboarding.md](docs/base-onboarding.md)。**
