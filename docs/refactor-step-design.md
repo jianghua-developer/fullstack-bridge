@@ -148,10 +148,16 @@ bridge                              # 顶层 Click group
 group = click.Group()
 for combo in load_combos():
     cmd = click.Command(name=combo, params=[project_arg])
-    for p in param_schema(combo):           # §2.3，读钉 version 的 params.json
-        cmd.params.append(click.Option([f"--{p.name}"], type=p.type,
-                                        default=p.default, help=p.help,
-                                        **p.choice_kwargs))
+    for p in param_schema(combo):  # §2.3，读钉 version 的 params.json
+        cmd.params.append(
+            click.Option(
+                [f"--{p.name}"],
+                type=p.type,
+                default=p.default,
+                help=p.help,
+                **p.choice_kwargs,
+            )
+        )
     group.add_command(cmd)
 ```
 

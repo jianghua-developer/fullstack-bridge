@@ -2,9 +2,17 @@
 
 import pytest
 
-from bridge.combos import (edge_pairs, ensure_git_repo, is_url, iter_units,
-                           load_combos, merge_order, param_schema,
-                           resolve_base, resolve_template)
+from bridge.combos import (
+    edge_pairs,
+    ensure_git_repo,
+    is_url,
+    iter_units,
+    load_combos,
+    merge_order,
+    param_schema,
+    resolve_base,
+    resolve_template,
+)
 
 
 def test_is_url():
@@ -19,7 +27,9 @@ def test_iter_units_and_sources():
     units = iter_units(c)
     assert [k for k, _ in units] == ["frontend", "backend"]
     assert {u["source"] for _, u in units} == {
-        "vite-react-spa-template", "python-fastapi-template"}
+        "vite-react-spa-template",
+        "python-fastapi-template",
+    }
 
 
 def test_edge_pairs_ok():
@@ -33,8 +43,10 @@ def test_edge_pairs_missing_key_raises():
 
 
 def test_edge_pairs_multi_edge():
-    combo = {"units": {"ui": {}, "bff": {}, "api": {}},
-             "edges": [["ui", "bff"], ["bff", "api"]]}
+    combo = {
+        "units": {"ui": {}, "bff": {}, "api": {}},
+        "edges": [["ui", "bff"], ["bff", "api"]],
+    }
     assert edge_pairs(combo) == [("ui", "bff"), ("bff", "api")]
 
 
@@ -44,8 +56,10 @@ def test_merge_order_single_edge():
 
 
 def test_merge_order_multi_edge_dedup_middle():
-    combo = {"units": {"ui": {}, "bff": {}, "api": {}},
-             "edges": [["ui", "bff"], ["bff", "api"]]}
+    combo = {
+        "units": {"ui": {}, "bff": {}, "api": {}},
+        "edges": [["ui", "bff"], ["bff", "api"]],
+    }
     # bff 首现保留（consumer 位），api 最末赢
     assert merge_order(combo) == ["ui", "bff", "api"]
 
@@ -53,6 +67,7 @@ def test_merge_order_multi_edge_dedup_middle():
 def test_resolve_template_clones_to_cache():
     """裸名底座 → 缓存 clone 的 template/（砍本地模式，非兄弟目录）。"""
     import pathlib
+
     t = resolve_template("vite-react-spa-template", "0034ec9")
     p = pathlib.Path(t)
     assert p.name == "template"
@@ -80,6 +95,9 @@ def test_param_schema_exposes_native_hides_derived():
     c = load_combos()["python-react"]
     schema = param_schema("python-react", c)
     assert "auth_mode" in schema
-    assert "child_apps_raw" in schema      # 派生输入是原生参数 → 暴露
-    assert "child_apps" not in schema      # 纯派生值 → 不暴露
-    assert "project_name" not in schema or schema["project_name"].get("unit_key") == "frontend"
+    assert "child_apps_raw" in schema  # 派生输入是原生参数 → 暴露
+    assert "child_apps" not in schema  # 纯派生值 → 不暴露
+    assert (
+        "project_name" not in schema
+        or schema["project_name"].get("unit_key") == "frontend"
+    )

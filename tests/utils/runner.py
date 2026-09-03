@@ -9,8 +9,15 @@ BRIDGE = Path(__file__).resolve().parent.parent.parent
 
 def run_generate(project_dir, combo="python-react", *extra):
     """调用 cli.py generate 生成项目（combo 为子命令）；*extra 为 schema 选项。"""
-    cmd = [str(BRIDGE / ".venv" / "bin" / "python"), str(BRIDGE / "cli.py"),
-           "generate", combo, str(project_dir), "--skip-tasks", *extra]
+    cmd = [
+        str(BRIDGE / ".venv" / "bin" / "python"),
+        str(BRIDGE / "cli.py"),
+        "generate",
+        combo,
+        str(project_dir),
+        "--skip-tasks",
+        *extra,
+    ]
     r = subprocess.run(cmd, capture_output=True, text=True)
     assert r.returncode == 0, f"cli.py generate 失败:\n{r.stdout}\n{r.stderr}"
     return r

@@ -1,6 +1,5 @@
 """cli.py 单元测试：Click group 结构 + generate schema 选项。"""
 
-import pytest
 from click.testing import CliRunner
 
 from cli import _build_generate_group, build_bridge_group
@@ -23,10 +22,10 @@ def test_generate_combo_option_schema():
     group = _build_generate_group()
     cmd = group.commands["python-react"]
     opt_names = {p.name for p in cmd.params}
-    assert "project" in opt_names          # 位置参数
-    assert "auth_mode" in opt_names         # 原生参数（共享）暴露
-    assert "child_apps_raw" in opt_names    # 派生参数输入（原生）暴露
-    assert "child_apps" not in opt_names    # 纯派生值不暴露
+    assert "project" in opt_names  # 位置参数
+    assert "auth_mode" in opt_names  # 原生参数（共享）暴露
+    assert "child_apps_raw" in opt_names  # 派生参数输入（原生）暴露
+    assert "child_apps" not in opt_names  # 纯派生值不暴露
     assert "project_name" not in opt_names  # 内部派生不暴露
     assert "skip_tasks" in opt_names
 

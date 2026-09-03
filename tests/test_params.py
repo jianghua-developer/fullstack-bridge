@@ -4,15 +4,27 @@ from bridge.check.params import diff_params, enabled_choices
 
 
 def test_enabled_choices_filters_disabled():
-    spec = {"choices": [{"value": "none"}, {"value": "opaque"},
-                        {"value": "jwt", "disabled": True}]}
+    spec = {
+        "choices": [
+            {"value": "none"},
+            {"value": "opaque"},
+            {"value": "jwt", "disabled": True},
+        ]
+    }
     assert enabled_choices(spec) == ["none", "opaque"]
 
 
 def test_diff_params_choice_change():
-    old = {"params": {"auth_mode": {"choices": [{"value": "none"}, {"value": "opaque"}]}}}
-    new = {"params": {"auth_mode": {"choices": [
-        {"value": "none"}, {"value": "opaque"}, {"value": "jwt"}]}}}
+    old = {
+        "params": {"auth_mode": {"choices": [{"value": "none"}, {"value": "opaque"}]}}
+    }
+    new = {
+        "params": {
+            "auth_mode": {
+                "choices": [{"value": "none"}, {"value": "opaque"}, {"value": "jwt"}]
+            }
+        }
+    }
     diffs = diff_params(old, new)
     assert any("启用取值变化" in d for d in diffs)
 

@@ -27,8 +27,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--for-base", help="只克隆涉及该底座的组合")
-    ap.add_argument("--collect-params", metavar="DIR",
-                    help="把各底座钉 version 的 params.json 拷到 DIR（spec 烘焙用）")
+    ap.add_argument(
+        "--collect-params",
+        metavar="DIR",
+        help="把各底座钉 version 的 params.json 拷到 DIR（spec 烘焙用）",
+    )
     args = ap.parse_args()
 
     data = yaml.safe_load((BRIDGE / "combos.yaml").read_text(encoding="utf-8"))
@@ -37,11 +40,16 @@ def main() -> int:
 
     affected: set[str] = set()
     if args.for_base:
-        affected = {name for name, c in combos.items()
-                    if args.for_base in {u["source"] for _, u in c["units"].items()}}
+        affected = {
+            name
+            for name, c in combos.items()
+            if args.for_base in {u["source"] for _, u in c["units"].items()}
+        }
         if not affected:
             raise SystemExit(f"❌ 无组合使用底座 {args.for_base}")
-        sources = {u["source"] for name in affected for _, u in combos[name]["units"].items()}
+        sources = {
+            u["source"] for name in affected for _, u in combos[name]["units"].items()
+        }
     elif args.all:
         sources = {u["source"] for c in combos.values() for _, u in c["units"].items()}
     else:
@@ -77,8 +85,11 @@ def main() -> int:
                 # 烘焙必须 = combos.yaml 钉 version 的 params.json：总是 checkout 到钉 version
                 ver = unit.get("version")
                 if ver:
-                    subprocess.run(["git", "-C", str(repo), "checkout", ver],
-                                   check=True, capture_output=True)
+                    subprocess.run(
+                        ["git", "-C", str(repo), "checkout", ver],
+                        check=True,
+                        capture_output=True,
+                    )
                 src_json = repo / "params.json"
                 if not src_json.exists():
                     raise SystemExit(f"❌ {src} 无 params.json（{src_json}）")

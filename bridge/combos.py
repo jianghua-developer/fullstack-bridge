@@ -38,6 +38,7 @@ def _load_bases() -> dict:
 
 # ── units/edges 访问器（§2.2）──────────────────────────────────────
 
+
 def iter_units(combo: dict) -> list[tuple[str, dict]]:
     """(key, {source, version})，按声明序。"""
     return list(combo["units"].items())
@@ -76,6 +77,7 @@ def merge_order(combo: dict) -> list[str]:
 
 # ── 底座统一 clone（§1.1）─────────────────────────────────────────
 
+
 def _ensure_base(source: str, version: str | None = None) -> Path:
     """clone 裸名底座到缓存 → checkout version → 返回仓库根。
 
@@ -91,8 +93,11 @@ def _ensure_base(source: str, version: str | None = None) -> Path:
         print(f"↻ clone {url} → {dest}")
         subprocess.run(["git", "clone", url, str(dest)], check=True)
     if version:
-        cur = subprocess.run(["git", "-C", str(dest), "rev-parse", "HEAD"],
-                             capture_output=True, text=True).stdout.strip()
+        cur = subprocess.run(
+            ["git", "-C", str(dest), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
         if cur != version:
             subprocess.run(["git", "-C", str(dest), "checkout", version], check=True)
     return dest
@@ -127,10 +132,15 @@ def ensure_git_repo(source: str) -> None:
         return  # git URL，clone 时得 git
     if source.startswith(("/", "./", "../")):
         target = Path(source)
-        r = subprocess.run(["git", "-C", str(target), "rev-parse", "--is-inside-work-tree"],
-                           capture_output=True, text=True)
+        r = subprocess.run(
+            ["git", "-C", str(target), "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            text=True,
+        )
         if r.returncode != 0:
-            raise SystemExit(f"❌ 底座 {target} 不是 git 仓库（显式本地路径须为 git 检出）")
+            raise SystemExit(
+                f"❌ 底座 {target} 不是 git 仓库（显式本地路径须为 git 检出）"
+            )
         return
     _ensure_base(source)  # 裸名：clone 即可，天然 git
 

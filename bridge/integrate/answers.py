@@ -13,8 +13,12 @@ def read_answers(dest_dir: Path) -> dict:
     return {k: v for k, v in data.items() if not str(k).startswith("_")}
 
 
-def merge_answers_by(answers_by_key: dict[str, dict], order: list[str],
-                     user_params: dict, project_name: str) -> dict:
+def merge_answers_by(
+    answers_by_key: dict[str, dict],
+    order: list[str],
+    user_params: dict,
+    project_name: str,
+) -> dict:
     """按序剔除合并：dict.update 依 order，后者（provider/更深）赢。
 
     order 由 combos.merge_order 提供（consumer→provider 序）；python-react
@@ -29,7 +33,13 @@ def merge_answers_by(answers_by_key: dict[str, dict], order: list[str],
     return merged
 
 
-def merge_answers(front_ans: dict, back_ans: dict, user_params: dict, project_name: str) -> dict:
+def merge_answers(
+    front_ans: dict, back_ans: dict, user_params: dict, project_name: str
+) -> dict:
     """（兼容层）双端合并：frontend → backend → user。等价 merge_answers_by(front→back)。"""
-    return merge_answers_by({"frontend": front_ans, "backend": back_ans},
-                            ["frontend", "backend"], user_params, project_name)
+    return merge_answers_by(
+        {"frontend": front_ans, "backend": back_ans},
+        ["frontend", "backend"],
+        user_params,
+        project_name,
+    )

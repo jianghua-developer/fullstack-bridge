@@ -18,7 +18,8 @@ package = false
 [dependency-groups]
 dev = [
     "pytest>=8.0",
-    "pyinstaller>=6.0",  # 打包单文件可执行：uv run pyinstaller integrate.spec
+    "pyinstaller>=6.0",  # 打包单文件可执行：uv run pyinstaller bridge.spec
+    "ruff>=0.8",
 ]
 
 [tool.pytest.ini_options]

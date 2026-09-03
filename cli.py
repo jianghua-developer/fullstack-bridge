@@ -21,8 +21,13 @@ from pathlib import Path
 import click
 
 from bridge import BRIDGE
-from bridge.combos import (edge_pairs, iter_units, load_combos, merge_order,
-                           param_schema, resolve_template)
+from bridge.combos import (
+    iter_units,
+    load_combos,
+    merge_order,
+    param_schema,
+    resolve_template,
+)
 from bridge.integrate.answers import merge_answers_by, read_answers
 from bridge.integrate.copier import run_copier
 
@@ -61,14 +66,21 @@ def _build_generate_group() -> click.Group:
                 continue
             params.append(_spec_to_click(pname, spec))
 
-        params.append(click.Option(["--skip-tasks"], is_flag=True,
-                                   help="跳过 copier _tasks（测试用）"))
+        params.append(
+            click.Option(
+                ["--skip-tasks"], is_flag=True, help="跳过 copier _tasks（测试用）"
+            )
+        )
 
         def callback(project, skip_tasks, **kwargs):
             _do_generate(combo_name, cdef, Path(project), kwargs, skip_tasks)
 
-        cmd = click.Command(name=combo_name, params=params, callback=callback,
-                            help=f"生成 {combo_name} 组合项目")
+        cmd = click.Command(
+            name=combo_name,
+            params=params,
+            callback=callback,
+            help=f"生成 {combo_name} 组合项目",
+        )
         return cmd
 
     for name, cdef in combos.items():
@@ -76,8 +88,13 @@ def _build_generate_group() -> click.Group:
     return group
 
 
-def _do_generate(combo_name: str, cdef: dict, project_dir: Path,
-                 user_params: dict, skip_tasks: bool = False) -> None:
+def _do_generate(
+    combo_name: str,
+    cdef: dict,
+    project_dir: Path,
+    user_params: dict,
+    skip_tasks: bool = False,
+) -> None:
     """生成链：各 unit clone+checkout → copier → answers 合并 → 契约/README。"""
     order = merge_order(cdef)
     answers_by_key: dict[str, dict] = {}
@@ -86,8 +103,11 @@ def _do_generate(combo_name: str, cdef: dict, project_dir: Path,
     for key, unit in iter_units(cdef):
         src = resolve_template(unit["source"], unit.get("version"))
         dest = project_dir / key
-        data = {"project_name": f"{project_name}-{key}",
-                "project_title": project_name, **user_params}
+        data = {
+            "project_name": f"{project_name}-{key}",
+            "project_title": project_name,
+            **user_params,
+        }
         run_copier(src, dest, data, trust=True, skip_tasks=skip_tasks)
         answers_by_key[key] = read_answers(dest)
 
@@ -95,11 +115,18 @@ def _do_generate(combo_name: str, cdef: dict, project_dir: Path,
 
     # 契约渲染至 docs/
     contract_dir = BRIDGE / "combos" / combo_name
-    run_copier(str(contract_dir), project_dir / "docs", merged, trust=False, skip_tasks=False)
+    run_copier(
+        str(contract_dir), project_dir / "docs", merged, trust=False, skip_tasks=False
+    )
     # 项目 README 渲染（stack 元数据来自 combos.yaml）
     stack = cdef.get("stack", {})
-    run_copier(str(BRIDGE / "templates" / "project-README"), project_dir,
-               {**merged, **stack}, trust=False, skip_tasks=False)
+    run_copier(
+        str(BRIDGE / "templates" / "project-README"),
+        project_dir,
+        {**merged, **stack},
+        trust=False,
+        skip_tasks=False,
+    )
 
     print(f"\n✅ 项目已生成: {project_dir}")
     for key, _ in iter_units(cdef):
@@ -110,7 +137,10 @@ def _do_generate(combo_name: str, cdef: dict, project_dir: Path,
 
 # ── check 子命令（桥 check 逻辑迁入 Click，沿 units/edges）─────────
 
-def check_combo(name: str, combo: dict, base_repo: str | None, base_version: str | None) -> bool:
+
+def check_combo(
+    name: str, combo: dict, base_repo: str | None, base_version: str | None
+) -> bool:
     """检查单个组合（漂移/子集/覆盖）。逻辑沿 units/edges。"""
     drift = _check_drift(name, combo, base_repo, base_version)
     declared = _declared_or_warn(name)
@@ -124,10 +154,13 @@ def check_combo(name: str, combo: dict, base_repo: str | None, base_version: str
 
 def _declared_or_warn(combo_name: str) -> set[str] | None:
     from bridge.combos import declared_params
+
     return declared_params(combo_name)
 
 
-def _check_drift(name: str, combo: dict, base_repo: str | None, base_version: str | None) -> bool:
+def _check_drift(
+    name: str, combo: dict, base_repo: str | None, base_version: str | None
+) -> bool:
     from bridge.check.params import diff_params, read_params
     from bridge.combos import resolve_base
 
@@ -137,11 +170,15 @@ def _check_drift(name: str, combo: dict, base_repo: str | None, base_version: st
         base_dir = resolve_base(src)
         old, err = read_params(base_dir, pinned)
         if err:
-            print(f"✗ [{name} {key}] {err}"); drift = True; continue
+            print(f"✗ [{name} {key}] {err}")
+            drift = True
+            continue
         cur_ref = base_version if (base_repo and src == base_repo) else None
         new, err = read_params(base_dir, cur_ref)
         if err:
-            print(f"✗ [{name} {key}] {err}"); drift = True; continue
+            print(f"✗ [{name} {key}] {err}")
+            drift = True
+            continue
         diffs = diff_params(old, new)
         who = f"信号版本 {cur_ref}" if cur_ref else "当前工作树"
         if diffs:
@@ -171,7 +208,9 @@ def _check_subset(name: str, union_params: dict, declared: set[str] | None) -> b
         return False
     missing = declared - set(union_params)
     if missing:
-        print(f"⚠️ [{name}] 契约声明参数不在底座参数并集（可能版本未对齐）: {sorted(missing)}")
+        print(
+            f"⚠️ [{name}] 契约声明参数不在底座参数并集（可能版本未对齐）: {sorted(missing)}"
+        )
         return True
     print(f"✓ [{name}] 契约声明参数 ⊆ 底座参数并集")
     return False
@@ -190,14 +229,21 @@ def _check_coverage(name: str, union_params: dict, declared: set[str] | None) ->
     return drift
 
 
-def _select_targets(combo_arg: str | None, all_flag: bool,
-                    base_repo: str | None, base_version: str | None) -> dict:
+def _select_targets(
+    combo_arg: str | None,
+    all_flag: bool,
+    base_repo: str | None,
+    base_version: str | None,
+) -> dict:
     combos = load_combos()
     if base_repo:
         if not base_version:
             raise click.UsageError("--base-version 必填（与 --base-repo 配对）")
-        targets = {n: c for n, c in combos.items()
-                   if base_repo in {u["source"] for _, u in iter_units(c)}}
+        targets = {
+            n: c
+            for n, c in combos.items()
+            if base_repo in {u["source"] for _, u in iter_units(c)}
+        }
         if not targets:
             print(f"⚠️ 无组合使用底座 {base_repo}")
         return targets
