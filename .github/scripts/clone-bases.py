@@ -48,7 +48,10 @@ def main() -> int:
             if args.for_base in {u["source"] for _, u in c["units"].items()}
         }
         if not affected:
-            raise SystemExit(f"❌ 无组合使用底座 {args.for_base}")
+            # 无组合使用该底座 = 合法状态（如 bases 注册备用的底座）——无需 clone/检查，
+            # 警告并干净退出，避免 check-drift 因「无关底座信号」失败
+            print(f"⚠️ 无组合使用底座 {args.for_base}——跳过（无需 clone/检查）")
+            return 0
         sources = {
             u["source"] for name in affected for _, u in combos[name]["units"].items()
         }
