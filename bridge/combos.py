@@ -22,7 +22,9 @@ COMBO_FILE = BRIDGE / "combos.yaml"
 # 底座统一克隆缓存（combos.yaml version checkout）——clone-bases.py / spec 共享
 BASE_CACHE = Path.home() / ".cache" / "fullstack-bridge" / "bases"
 
-# selection 已知字段（底座 params.json selection 区 与 combos.yaml combo 段共用）
+# selection 已知字段（底座 params.json selection 区 与 combos.yaml combo 段共用）。
+# 单一真源在 fullstack-param-protocol SCHEMA.md（S3）：协议新增字段时此处须同步——
+# 底座策展容忍未知字段轮转，桥 merge 只并已知字段；不一致会静默丢字段。
 SELECTION_FIELDS = ("suited_for", "tradeoffs")
 
 

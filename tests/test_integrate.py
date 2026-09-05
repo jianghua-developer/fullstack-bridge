@@ -1,6 +1,7 @@
 """cli.py 单元测试：Click group 结构 + generate schema 选项（惰性构建）。"""
 
 import click
+import pytest
 from click.testing import CliRunner
 
 from cli import _build_generate_group, build_bridge_group
@@ -38,8 +39,8 @@ def test_generate_combo_option_schema():
     assert "skip_tasks" in opt_names
 
 
-def test_generate_broken_combo_degrades(monkeypatch):
-    """坏 combo（schema 构建失败）→ get_command 返回 None 且不抛（B2 降级）。"""
+def test_generate_broken_combo_reports_clear_error(monkeypatch):
+    """坏 combo（schema 构建失败）→ UsageError（已注册可辨，S2），不再静默降级 None。"""
     import cli as cli_mod
 
     def _boom(*a, **k):
@@ -47,8 +48,12 @@ def test_generate_broken_combo_degrades(monkeypatch):
 
     monkeypatch.setattr(cli_mod, "param_schema", _boom)
     group = _build_generate_group()
-    assert group.get_command(click.Context(group), "python-react") is None
-    assert "python-react" not in group.commands  # 未建成，不拖死
+    with pytest.raises(click.UsageError) as ei:
+        group.get_command(click.Context(group), "python-react")
+    assert "已注册但 schema 构建失败" in str(ei.value)
+    assert "python-react" not in group.commands  # 坏命令不缓存
+    # 未注册 combo 仍返回 None（no-such-command，两类错误面区分）
+    assert group.get_command(click.Context(group), "nope") is None
 
 
 def test_generate_help_smoke():

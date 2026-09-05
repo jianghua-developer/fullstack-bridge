@@ -45,13 +45,49 @@ def test_show_combo_json_params_and_selection():
     assert "auth_mode" in d["params"]  # 原生参数（backend provider 持契约）
     assert "child_apps" not in d["params"]  # 派生不暴露
     assert "child_apps" in d["derived"]  # 派生只读列
+    # S1：params 面与 generate 可接受面同构——内部身份参数剔除并标注
+    assert "project_name" not in d["params"]
+    assert "project_title" not in d["params"]
+    assert d["internal"] == ["project_name", "project_title"]
     assert d["selection"]["suited_for"]
+
+
+def test_show_combo_params_equals_generate_options():
+    """show-combo params 键集 == generate 该组合可接受选项键集（内省面即落参面，S1）。"""
+    import click
+
+    group = build_bridge_group()
+    gen_group = group.commands["generate"]
+    ctx = click.Context(gen_group)
+    cmd = gen_group.get_command(ctx, "python-react")
+    gen_opts = {p.name for p in cmd.params if isinstance(p, click.Option)} - {
+        "skip_tasks"
+    }
+    d = json.loads(_invoke("show-combo", "python-react", "--json"))
+    assert set(d["params"]) == gen_opts
+    assert "project_name" not in gen_opts  # 内部参数不进 generate 选项面
 
 
 def test_show_combo_unknown_raises():
     r = CliRunner().invoke(build_bridge_group(), ["show-combo", "nope"])
     assert r.exit_code != 0
     assert "未知组合" in r.output
+
+
+def test_generate_registered_but_broken_schema_clear_error(monkeypatch):
+    """S2：已注册 combo 但 schema 构建失败 → 明确报错，而非误导性 no-such-command。"""
+    import cli as cli_mod
+
+    def boom(combo_name, cdef):
+        raise SystemExit("模拟缺底座 params.json")
+
+    monkeypatch.setattr(cli_mod, "param_schema", boom)
+    r = CliRunner().invoke(
+        build_bridge_group(), ["generate", "python-react", "proj", "--skip-tasks"]
+    )
+    assert r.exit_code != 0
+    assert "已注册但 schema 构建失败" in r.output
+    assert "No such command" not in r.output
 
 
 # ── combo 段 selection 结构门 ──────────────────────────────────

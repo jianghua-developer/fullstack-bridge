@@ -91,12 +91,14 @@ class LazyGenerateGroup(click.Group):
         if cmd_name not in self.commands:
             combos = load_combos()
             if cmd_name not in combos:
-                return None
+                return None  # 真未注册 → no-such-command
             try:
                 cmd = self._make_cmd(cmd_name, combos[cmd_name])
             except SystemExit as e:
-                click.echo(f"⚠️ 组合 {cmd_name} schema 构建失败，已跳过: {e}", err=True)
-                return None
+                # S2：已注册但 schema 构建失败 → 明确报错，而非退回 no-such-command（误导）
+                raise click.UsageError(
+                    f"组合「{cmd_name}」已注册但 schema 构建失败: {e}"
+                )
             self.add_command(cmd)
         return super().get_command(ctx, cmd_name)
 
@@ -394,11 +396,16 @@ def _build_show_combo_command() -> click.Command:
             raise click.UsageError(f"未知组合 {combo}（可用: {', '.join(combos)}）")
         cdef = combos[combo]
         validate_combo(combo, cdef)  # 结构门（单目标，本地无网络）
+        schema = param_schema(combo, cdef)  # 原生合并（provider 优先）
+        # S1：params 面与 generate 可接受面同构——剔除内部身份参数（generate 侧亦剔除），
+        # 使内省面（get_combo_params → generate_multi）不会给出 generate 拒绝的键
+        params = {k: v for k, v in schema.items() if k not in _INTERNAL_PARAMS}
         payload = {
             "combo": combo,
             "units": _units_desc(cdef),
             "edges": _edges_list(cdef),
-            "params": param_schema(combo, cdef),  # 原生合并（provider 优先）
+            "params": params,  # 可提问原生参数（与 generate 选项一致）
+            "internal": sorted(_INTERNAL_PARAMS & schema.keys()),  # 内部派生，勿传
             "derived": derived_param_names(cdef),  # 派生参数（只读，勿传）
             "selection": merge_selection(cdef),
         }
@@ -407,6 +414,8 @@ def _build_show_combo_command() -> click.Command:
             return
         click.echo(f"{combo}  edges={payload['edges']}")
         click.echo(f"  原生参数: {', '.join(sorted(payload['params']))}")
+        if payload["internal"]:
+            click.echo(f"  内部参数(勿传): {', '.join(payload['internal'])}")
         if payload["derived"]:
             click.echo(f"  派生参数(只读): {', '.join(payload['derived'])}")
         for s in (payload["selection"] or {}).get("suited_for", []):
