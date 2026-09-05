@@ -50,6 +50,9 @@ def test_show_combo_json_params_and_selection():
     assert "project_title" not in d["params"]
     assert d["internal"] == ["project_name", "project_title"]
     assert d["selection"]["suited_for"]
+    # A2/U1：≥2 units 的原生共享参数标 shared:true；单端专属参数不标
+    assert d["params"]["auth_mode"]["shared"] is True
+    assert "shared" not in d["params"]["api_base_url"]  # 仅前端 unit 有
 
 
 def test_show_combo_params_equals_generate_options():

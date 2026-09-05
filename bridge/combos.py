@@ -298,6 +298,16 @@ def param_schema(combo_name: str, combo: dict) -> dict[str, dict]:
                     schema[name] = {**spec, "unit_key": key}  # provider 端覆盖 consumer
                 continue
             schema[name] = {**spec, "unit_key": key}
+
+    # A2（U1 程序化标注）：≥2 units 的原生参数 = 全链单一决策（单值广播），标 shared: true；
+    # 身份参数（project_name/project_title 各端独立取值）不算共享。show-combo 透传即得。
+    occurrences: dict[str, int] = {}
+    for params in per_unit.values():
+        for name in params:
+            occurrences[name] = occurrences.get(name, 0) + 1
+    for name, count in occurrences.items():
+        if count >= 2 and name not in _identity_params and name in schema:
+            schema[name]["shared"] = True
     return schema
 
 
