@@ -6,6 +6,10 @@
 
 @../ai-foundation-memory/series-overview.md
 
+## 设计文档
+
+- [docs/DESIGN.md](docs/DESIGN.md) — 架构定稿（本仓唯一事实源）。改代码前先过它；评审意见/变更先改 DESIGN.md 再动代码。§ 编号与代码注释锚点一致（如 `DESIGN §8` = selection 单一真源与 combo 段纪律）。
+
 ## 关键架构要点（开发时不得违背）
 
 - **多单元组合（units+edges）**：combos.yaml = 多端治理真源；units key = 生成目录名，edges = 有序对 [consumer, provider]，provider 契约属主。桥只管 N≥2，单模板形态走能力层 generate_single（bridge-mcp-server）。
