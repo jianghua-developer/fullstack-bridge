@@ -75,6 +75,18 @@ combos:
 - **合并 = per-edge 属主**：沿 edges（consumer→provider），provider 为属主、同名 provider 赢；用户显式参数最高（python-react 单 edge ≡ 用户 > 后端 > 前端）
 - 生成链：`cli.py generate` 生成各单元 → 读 answers → 按 edges 剔除合并 → 喂契约 copier 模板
 
+## 共享参数作用域（何时全链路共享 / 何时锁定单 edge）
+
+跨多 unit 的同名参数（如 `auth_mode`）在 CLI/schema 中合并为**一个共享参数**。它的作用域由**语义**决定，而非命名巧合：
+
+| 情形 | 作用域 | 例子 |
+|---|---|---|
+| 该参数在整条链是**同一决策**，各端裁剪实现它 | **全链路共享**——单值广播到所有声明它的端，契约以此单值渲染 | `auth_mode`：python-react 双端都是「要不要 opaque 会话」这一个决策 |
+| 该参数只在**某条 edge 的两端**有语义，其它端无关 | 自然落在该 edge / 相关 unit，其它 unit 不声明即不受影响 | `api_base_url`（前端调 BFF）、`api_prefix`（后端），各端私有 |
+| 相邻 edge 上本可**不同取值**（如 UI↔BFF 用 opaque、BFF↔真后端用 jwt） | **锁定为各 edge / unit 的私有参数**——不把它们当「同一共享参数」试图分段 | BFF 底座自行声明 `upstream_auth` 表达对上游策略 |
+
+**设计约束（U1 定案）**：**不引入逐端参数命名空间**（如把共享的 `auth_mode` 拆成 `ui.auth_mode / bff.auth_mode / api.auth_mode`）。「分段认证」这类诉求不是「同一参数需分段取值」，而是「该参数本就不属于共享语义」——应表达为对应 edge/unit 的**私有参数**，由逐跳契约各自承载。后果：一个 combo 里共享参数越少、各 edge 语义越独立，越该用私有参数 + 多 edge 契约（ui-bff-api 形态）表达；反之共享参数多 = 全链强耦合的单一契约。`cli.py`/能力层的共享参数标 `shared: true`，agent 填一个值即广播，不能也不需分端指定。
+
 ## 对齐协议（params.json）
 
 各底座根目录 `params.json`（协议仓 `fullstack-param-protocol` 的 `gen-params.py` 经 copier 内省生成、底座自维护）。`cli.py check` 据此检测底座漂移、校验组合对齐（选项 schema 亦由 params.json 驱动），未对齐经 `check-drift` workflow 开 issue。
