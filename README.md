@@ -20,9 +20,9 @@ my-app/
 
 | 文件/目录 | 职责 |
 |---|---|
-| `cli.py` | 统一 CLI（Click）：`generate <combo> <project>` + `check`，选项由底座 params.json 数据驱动 |
-| `bridge/` | 共享库包：`combos.py`（units/edges 解析 + 底座统一 clone + param_schema）、`copier.py`（执行）、`answers.py`（剔除合并） |
-| `combos.yaml` | 多端治理真源：`bases` 注册表 + `combos`（units≥2 + edges + version 基线 + units.{key}.{app,stack} README 元数据） |
+| `cli.py` | 统一 CLI（Click）：`generate <combo> <project>` + `check` + 内省 `list-combos`/`show-combo`（`--json`），选项由底座 params.json 数据驱动 |
+| `bridge/` | 共享库包：`combos.py`（units/edges 解析 + 底座统一 clone + param_schema + selection 合并）、`copier.py`（执行）、`answers.py`（剔除合并） |
+| `combos.yaml` | 多端治理真源：`bases` 注册表 + `combos`（units≥2 + edges + version 基线 + units.{key}.{app,stack} README 元数据 + combo 段 selection 仅不可约） |
 | `combos/<组合>/` | 契约 copier 模板（`copier.yml` 全必填零默认 + `CONTRACT.md.jinja`，可用派生参数枚举） |
 | `templates/project-README/` | 项目 README copier 模板（cli.py 从 combos.yaml `units.{key}.{app,stack}` 装配 `units_desc` 注入渲染） |
 | `.github/scripts/clone-bases.py` | 统一底座获取：克隆到缓存（CI 预克隆 + 打包烘焙 params.json） |
@@ -36,14 +36,20 @@ uv run python cli.py generate python-react my-app \
   --project-description "业务描述" --auth-mode opaque --with-db true --with-child-app true \
   --child-apps-raw "backend,admin:adm"
 
-# check：对齐检查
+# check：对齐检查（结构门在入口：整注册表形态 + combo 段 selection schema 校验）
 uv run python cli.py check --combo python-react
+
+# 内省（能力层 list_combos/get_combo_params 数据源，--json machine 输出）
+uv run python cli.py list-combos --json     # 多端菜单：units/edges + 合并 selection
+uv run python cli.py show-combo python-react --json   # 参数基线（原生/派生）+ 合并 selection
 ```
 
 - 底座**一律 clone 到缓存**（`~/.cache/fullstack-bridge/bases`，按 combos.yaml version checkout）——无源码兄弟目录模式；首次需网络，之后缓存复用。
 - 选项名 = 底座**原生参数名**（`--child-apps-raw`），派生参数（`child_apps`）由 copier 计算不暴露。
 - 依赖由底座 `_tasks` 自动安装（前端 pnpm install / 后端 uv sync）；`--skip-tasks` 跳过（测试用）。
 - 可执行文件（`dist/bridge`）内烘焙各底座 params.json——`--help`/schema 零网络。
+- 内省 `selection` = 各 unit 底座 params.json `selection` 区**并集** + combo 段（单一真源在底座；
+  combo 段只放组合不可约事实，结构校验在 check 入口 / generate 单目标）。
 
 ## 组合映射（combos.yaml）
 

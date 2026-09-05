@@ -1,33 +1,44 @@
 #!/usr/bin/env python3
-"""fullstack-bridge 统一 CLI（Click）：generate + check。
+"""fullstack-bridge 统一 CLI（Click）：generate + check + 内省。
 
-命令树（refactor-step-design §3）：
+命令树（refactor-step-design §3 / P2 内省面）：
   bridge generate <combo> <project> [选项…]    # combo 为 generate group 的动态子命令
   bridge check [--combo | --all | --base-repo --base-version]
+  bridge list-combos [--json]                  # 多端菜单：units/edges + 合并 selection
+  bridge show-combo <combo> [--json]           # 参数基线（原生/派生）+ 合并 selection
 
 设计要点：
 - 选项 schema 由各 unit 的 params.json 数据驱动（读钉 version 的底座 clone/烘焙），
   不再有 -D 自由透传与精选别名（问题⑦定案）；
 - 底座一律 clone/baked（combos.yaml version），无源码兄弟目录模式；
-- project_name = project 位置参数 basename（内部派生，非用户选项）。
+- project_name = project 位置参数 basename（内部派生，非用户选项）；
+- 结构校验归属（R1/A2）：generate 只校验目标 combo；check 入口整注册表结构门；
+- 内省 selection = 各 unit 底座 selection 并集 + combo 段（单一真源在底座）。
 
 用法：
   python cli.py generate python-react my-app --auth-mode opaque --with-child-app true
   python cli.py check --combo python-react
+  python cli.py list-combos --json
+  python cli.py show-combo python-react --json
 """
 
+import json
 from pathlib import Path
 
 import click
 
 from bridge import BRIDGE
 from bridge.combos import (
+    derived_param_names,
+    edge_pairs,
     iter_units,
     load_combos,
     merge_order,
+    merge_selection,
     param_schema,
     resolve_template,
     validate_all_combos,
+    validate_combo,
 )
 from bridge.integrate.answers import merge_answers_by, read_answers
 from bridge.integrate.copier import run_copier
@@ -67,7 +78,13 @@ class LazyGenerateGroup(click.Group):
         return sorted(load_combos())
 
     def invoke(self, ctx):
-        validate_all_combos()
+        # R1：generate 只校验**目标 combo**（不再全量——坏兄弟 combo 不阻断健康 combo 生成）；
+        # 全注册表结构校验归 check 入口（A2）。
+        target = ctx.invoked_subcommand
+        if target:
+            combos = load_combos()
+            if target in combos:
+                validate_combo(target, combos[target])
         return super().invoke(ctx)
 
     def get_command(self, ctx, cmd_name):
@@ -318,11 +335,93 @@ def _select_targets(
     raise click.UsageError("请给 --combo 或 --all（或 --base-repo --base-version）")
 
 
+# ── 内省子命令（list-combos / show-combo）：多端菜单 + 参数基线 + 合并 selection ──
+# 供能力层（bridge-mcp-server）纯 cli 消费：selection = 各 unit 底座 selection 并集 +
+# combo 段（单一真源在底座 params.json；combo 段只放组合不可约事实，见 DESIGN §8）。
+
+
+def _units_desc(cdef: dict) -> list[dict]:
+    return [
+        {
+            "key": key,
+            "source": unit.get("source"),
+            "version": unit.get("version"),
+            "app": unit.get("app", ""),
+            "stack": unit.get("stack", ""),
+        }
+        for key, unit in iter_units(cdef)
+    ]
+
+
+def _edges_list(cdef: dict) -> list[list[str]]:
+    return [list(p) for p in edge_pairs(cdef)]
+
+
+def _build_list_combos_command() -> click.Command:
+    @click.command("list-combos")
+    @click.option("--json", "as_json", is_flag=True, help="JSON 输出（machine 消费）")
+    def list_combos(as_json):
+        """多端菜单：注册组合 + units/edges + 合并 selection（L1 候选集 / L2 地基）。"""
+        rows = [
+            {
+                "combo": name,
+                "units": _units_desc(cdef),
+                "edges": _edges_list(cdef),
+                "selection": merge_selection(cdef),
+            }
+            for name, cdef in load_combos().items()
+        ]
+        if as_json:
+            click.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+            return
+        for row in rows:
+            units = ", ".join(f"{u['key']}({u['source']})" for u in row["units"])
+            click.echo(f"{row['combo']}: {units}")
+            for s in (row["selection"] or {}).get("suited_for", []):
+                click.echo(f"  suited_for: {s}")
+
+    return list_combos
+
+
+def _build_show_combo_command() -> click.Command:
+    @click.command("show-combo")
+    @click.argument("combo")
+    @click.option("--json", "as_json", is_flag=True, help="JSON 输出（machine 消费）")
+    def show_combo(combo, as_json):
+        """单组合详情：units/edges + 参数基线（原生/派生）+ 合并 selection。"""
+        combos = load_combos()
+        if combo not in combos:
+            raise click.UsageError(f"未知组合 {combo}（可用: {', '.join(combos)}）")
+        cdef = combos[combo]
+        validate_combo(combo, cdef)  # 结构门（单目标，本地无网络）
+        payload = {
+            "combo": combo,
+            "units": _units_desc(cdef),
+            "edges": _edges_list(cdef),
+            "params": param_schema(combo, cdef),  # 原生合并（provider 优先）
+            "derived": derived_param_names(cdef),  # 派生参数（只读，勿传）
+            "selection": merge_selection(cdef),
+        }
+        if as_json:
+            click.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+            return
+        click.echo(f"{combo}  edges={payload['edges']}")
+        click.echo(f"  原生参数: {', '.join(sorted(payload['params']))}")
+        if payload["derived"]:
+            click.echo(f"  派生参数(只读): {', '.join(payload['derived'])}")
+        for s in (payload["selection"] or {}).get("suited_for", []):
+            click.echo(f"  suited_for: {s}")
+
+    return show_combo
+
+
 def build_bridge_group() -> click.Group:
-    """组装顶层 bridge group（generate 动态子命令 + check）。惰性：import cli 无副作用。"""
+    """组装顶层 bridge group（generate 动态子命令 + check + 内省）。惰性：import cli 无副作用。"""
     group = click.Group("bridge", help="fullstack-bridge：多单元组合生成 + 对齐检查")
     group.add_command(_build_generate_group())
     group.add_command(_build_check_command())
+    group.add_command(_build_list_combos_command())
+    group.add_command(_build_show_combo_command())
     return group
 
 
@@ -334,6 +433,9 @@ def _build_check_command() -> click.Command:
     @click.option("--base-version", help="漂移检查：底座信号版本（commit/tag）")
     def check(combo, all_flag, base_repo, base_version):
         """多端对齐/漂移检查。"""
+        # A2：结构门放 check 入口——缺 edges/非链/未注册 source/坏 combo 段 selection
+        # 在 check（含 bridge-gate check --all）即整注册表暴露，不再静默放行。
+        validate_all_combos()
         targets = _select_targets(combo, all_flag, base_repo, base_version)
         if not targets:
             return 0

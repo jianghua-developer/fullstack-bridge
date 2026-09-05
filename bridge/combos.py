@@ -22,9 +22,37 @@ COMBO_FILE = BRIDGE / "combos.yaml"
 # 底座统一克隆缓存（combos.yaml version checkout）——clone-bases.py / spec 共享
 BASE_CACHE = Path.home() / ".cache" / "fullstack-bridge" / "bases"
 
+# selection 已知字段（底座 params.json selection 区 与 combos.yaml combo 段共用）
+SELECTION_FIELDS = ("suited_for", "tradeoffs")
+
 
 def load_combos() -> dict:
     return yaml.safe_load(COMBO_FILE.read_text(encoding="utf-8"))["combos"]
+
+
+def validate_combo_selection(combo_name: str, selection) -> None:
+    """combo 段 selection schema（combos.yaml 内策展，结构校验）。
+
+    纪律（DESIGN §8）：combo 段只放**组合不可约**事实，可缺省；技术栈事实单一真源
+    在底座 params.json selection 区，禁止在此重复写。字段仅 suited_for / tradeoffs，
+    出现须 list[str]；未知字段拒绝（组合层策展严格，防拼错漂移）。
+    """
+    if selection is None:
+        return
+    if not isinstance(selection, dict):
+        raise SystemExit(f"❌ 组合 {combo_name} selection 段应为对象")
+    unknown = set(selection) - set(SELECTION_FIELDS)
+    if unknown:
+        raise SystemExit(
+            f"❌ 组合 {combo_name} selection 段含未知字段: {sorted(unknown)}"
+            "（仅允许 suited_for/tradeoffs；底座技术事实写底座 params.json）"
+        )
+    for field in SELECTION_FIELDS:
+        val = selection.get(field)
+        if val is None:
+            continue
+        if not isinstance(val, list) or not all(isinstance(s, str) for s in val):
+            raise SystemExit(f"❌ 组合 {combo_name} selection.{field} 应为字符串数组")
 
 
 def validate_combo(combo_name: str, combo: dict) -> None:
@@ -49,6 +77,8 @@ def validate_combo(combo_name: str, combo: dict) -> None:
             f"❌ 组合 {combo_name} edges 数 {len(combo['edges'])} ≠ units-1"
             f"（{len(units) - 1}）——契约仅支持链形"
         )
+    # combo 段 selection 结构校验（只放组合不可约事实；可缺省）
+    validate_combo_selection(combo_name, combo.get("selection"))
 
 
 def validate_all_combos() -> None:
@@ -203,6 +233,19 @@ def _frozen_params_path(source: str) -> Path | None:
     return baked if baked.exists() else None
 
 
+def _unit_params_doc(source: str, version: str | None) -> dict | None:
+    """读 unit 底座 params.json 全文（两区：params + selection）。
+
+    读参分流（§1.4）：frozen 读烘焙 _MEIPASS/bases_params；源码读缓存 clone
+    （钉 version checkout）。缺文件 → None（调用方告警），不抛。
+    """
+    baked = _frozen_params_path(source) if _FROZEN else None
+    p = baked if baked is not None else _ensure_base(source, version) / "params.json"
+    if not p.exists():
+        return None
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
 def param_schema(combo_name: str, combo: dict) -> dict[str, dict]:
     """组合参数 schema：各 unit params.json 并集（§2.3）。
 
@@ -216,16 +259,11 @@ def param_schema(combo_name: str, combo: dict) -> dict[str, dict]:
     # 先按 unit key 收齐各自 params（仅原生参数）
     per_unit: dict[str, dict[str, dict]] = {}
     for key, unit in iter_units(combo):
-        baked = _frozen_params_path(unit["source"]) if _FROZEN else None
-        p = (
-            baked
-            if baked is not None
-            else _ensure_base(unit["source"], unit.get("version")) / "params.json"
-        )
-        if not p.exists():
-            print(f"⚠️ 缺底座 {unit['source']} params.json（{p}）——跳过其参数")
+        doc = _unit_params_doc(unit["source"], unit.get("version"))
+        if doc is None:
+            print(f"⚠️ 缺底座 {unit['source']} params.json——跳过其参数")
             continue
-        params = json.loads(p.read_text(encoding="utf-8")).get("params", {})
+        params = doc.get("params", {})
         per_unit[key] = {n: s for n, s in params.items() if not s.get("derived")}
 
     providers = {p for _, p in edge_pairs(combo)}  # 所有 edge 的 provider key（S2）
@@ -259,3 +297,49 @@ def param_schema(combo_name: str, combo: dict) -> dict[str, dict]:
                 continue
             schema[name] = {**spec, "unit_key": key}
     return schema
+
+
+def derived_param_names(combo: dict) -> list[str]:
+    """跨 unit 派生参数并集（derived:true，纯派生不向用户提问）。"""
+    names: set[str] = set()
+    for _, unit in iter_units(combo):
+        doc = _unit_params_doc(unit["source"], unit.get("version"))
+        if doc is None:
+            continue
+        names.update(n for n, s in doc.get("params", {}).items() if s.get("derived"))
+    return sorted(names)
+
+
+def merge_selection(combo: dict) -> dict | None:
+    """combo 完整 selection = 各 unit 底座 selection 并集 + combo 段（叠于后）。
+
+    单一真源纪律（DESIGN §8）：技术栈事实来自底座 params.json `selection` 区（写一次，
+    单端/多端共用）；combo 段只叠加组合不可约事实。底座未接 v2 / 无策展 → 跳过；
+    全部为空 → None（菜单该行无 selection）。并集去重、保留声明序。
+    """
+    merged: dict[str, list[str]] = {}
+
+    def _add(field: str, items) -> None:
+        if not isinstance(items, list):
+            return
+        bucket = merged.setdefault(field, [])
+        for s in items:
+            if isinstance(s, str) and s not in bucket:
+                bucket.append(s)
+
+    for _, unit in iter_units(combo):
+        doc = _unit_params_doc(unit["source"], unit.get("version"))
+        if doc is None:
+            continue
+        sel = doc.get("selection")
+        if not isinstance(sel, dict):
+            continue
+        for field in SELECTION_FIELDS:
+            _add(field, sel.get(field))
+    csel = combo.get("selection")
+    if isinstance(csel, dict):
+        for field in SELECTION_FIELDS:
+            _add(field, csel.get(field))
+    if not merged:
+        return None
+    return {field: merged[field] for field in SELECTION_FIELDS if field in merged}

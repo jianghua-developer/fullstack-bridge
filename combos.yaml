@@ -5,6 +5,8 @@
 #   version：该组合已复核/对齐到的底座 git 版本（手动维护，非自动更新）——check 以此为基线；生成统一 clone+checkout
 # edges：有序对 [consumer, provider]，provider 为契约属主；必填显式，支持多 edge
 # 契约目录固定 = combos/<combo>（copier.yml 声明契约参数并集）
+# combo 段 selection（可选）：只放**组合不可约**事实（配对/契约治理价值，DESIGN §8）；
+#   技术栈选择事实单一真源在各底座 params.json `selection` 区，禁止在此重复写
 bases:
   vite-react-spa-template: https://github.com/jianghua-developer/vite-react-spa-template.git
   vite-vue-spa-template:   https://github.com/jianghua-developer/vite-vue-spa-template.git
@@ -14,13 +16,19 @@ combos:
     units:
       frontend:
         source: vite-react-spa-template
-        version: 0034ec9
+        # 推进到协议 v2（params.json selection 区）——params 区未变，契约基线不受影响
+        version: 535f3d2
         # README 元数据：app=职责描述，stack=技术栈（加新组合随 combos.yaml 提供）
         app:   "前端应用"
         stack: "Vite + React + TypeScript + TanStack Query + axios"
       backend:
         source: python-fastapi-template
-        version: c73aa7b
+        version: 3bf48bb
         app:   "后端服务"
         stack: "FastAPI + SQLAlchemy（async）+ pydantic-settings"
     edges: [[frontend, backend]]
+    selection:
+      suited_for:
+        - "前后端分离一体交付：React 前端 + FastAPI 后端同仓，CONTRACT 契约随生成自动对齐"
+      tradeoffs:
+        - "相对单端分别生成再手工对接：契约/联调前置进生成链（桥治理）；代价是前后端须对齐组合基线版本"
